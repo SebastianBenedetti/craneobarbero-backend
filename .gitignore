@@ -1,0 +1,32 @@
+# Compilados de .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+
+# Dependencias
+node_modules/
+
+# Logs
+logs
+*.log
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Datos y respaldos
+*.dump
+*.backup
+*.backup.gz
+*.sqlite
+datos-exportados/
+
+# Editores y sistema
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
