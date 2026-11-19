@@ -234,7 +234,11 @@ public sealed class CutsController(AppDbContext db, FutureAppointments futureApp
 
 [ApiController]
 [Route("barbers")]
-public sealed class BarbersController(AppDbContext db, IPasswordHasher hasher, FutureAppointments futureAppointments)
+public sealed class BarbersController(
+    AppDbContext db,
+    IPasswordHasher hasher,
+    FutureAppointments futureAppointments,
+    Schedule.SlotGenerator slotGenerator)
     : ControllerBase
 {
     private const string NotFoundMessage = "No se encontró el barbero.";
@@ -312,6 +316,7 @@ public sealed class BarbersController(AppDbContext db, IPasswordHasher hasher, F
             throw new ConflictException(AuthController.EmailInUseMessage, ErrorCodes.EmailInUse);
         }
 
+        await slotGenerator.GenerateAsync(barber.Id, cancellationToken: cancellationToken);
         var response = await LoadAdminAsync(barber.Id, cancellationToken);
         return CreatedAtAction(nameof(Get), new { id = barber.Id }, response);
     }
@@ -380,6 +385,7 @@ public sealed class BarbersController(AppDbContext db, IPasswordHasher hasher, F
         {
             barber.IsActive = true;
             await db.SaveChangesAsync(cancellationToken);
+            await slotGenerator.GenerateAsync(id, cancellationToken: cancellationToken);
         }
 
         return await LoadAdminAsync(id, cancellationToken);
