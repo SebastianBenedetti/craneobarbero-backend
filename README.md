@@ -45,6 +45,15 @@ Sobre una base vacía (con las migraciones aplicadas) se pueden importar sucursa
 dotnet run --project src/CraneoBarbero.Api -- import-legacy <ruta del respaldo>
 ```
 
+## Despliegue
+
+La API corre en Render (plan gratuito) con Docker, a partir de `Dockerfile` y `render.yaml`:
+
+- Servicio web en la región Oregón, la misma que la base de Supabase.
+- `JWT_SECRET` lo genera Render; `DATABASE_URL` y `FRONTEND_URL` se cargan en el panel del servicio.
+- Render controla `/health`, que también consulta la base. Un monitor externo lo llama cada pocos minutos para que el servicio no se duerma.
+- El front en Vercel apunta a esta API con `VITE_API_URL`.
+
 ## Ejecutar
 
 ```
