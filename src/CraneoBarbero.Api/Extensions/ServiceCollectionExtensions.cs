@@ -6,6 +6,8 @@ using CraneoBarbero.Api.Common.Errors;
 using CraneoBarbero.Api.Common.Validation;
 using CraneoBarbero.Api.Configuration;
 using CraneoBarbero.Api.Data;
+using CraneoBarbero.Api.Data.Import;
+using CraneoBarbero.Api.Data.Seeding;
 using CraneoBarbero.Api.Security;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -68,8 +70,15 @@ public static class ServiceCollectionExtensions
             })
             .ValidateOnStart();
 
+        services.AddSingleton<TimestampsInterceptor>();
         services.AddDbContext<AppDbContext>((provider, options) =>
-            options.UseNpgsql(provider.GetRequiredService<IOptions<DatabaseSettings>>().Value.ConnectionString));
+            options.UseNpgsql(provider.GetRequiredService<IOptions<DatabaseSettings>>().Value.ConnectionString,
+                    DatabaseSetup.ConfigureNpgsql)
+                .AddInterceptors(provider.GetRequiredService<TimestampsInterceptor>()));
+
+        services.AddScoped<AdminSeeder>();
+        services.AddHostedService<AdminSeedHostedService>();
+        services.AddScoped<LegacyImporter>();
 
         return services;
     }

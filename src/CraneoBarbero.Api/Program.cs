@@ -1,10 +1,12 @@
 using System.Globalization;
 using CraneoBarbero.Api.Configuration;
+using CraneoBarbero.Api.Data.Import;
 using CraneoBarbero.Api.Extensions;
 using Serilog;
 using Serilog.Formatting.Compact;
 
-var builder = WebApplication.CreateBuilder(args);
+var isImport = args is [LegacyImportCommand.Name, ..];
+var builder = WebApplication.CreateBuilder(isImport ? [] : args);
 builder.AddDotEnvForDevelopment();
 
 if (int.TryParse(builder.Configuration[EnvironmentVariables.Port], NumberStyles.None,
@@ -46,8 +48,14 @@ builder.Services
 
 var app = builder.Build();
 
+if (isImport)
+{
+    return await LegacyImportCommand.RunAsync(app.Services, args[1..]);
+}
+
 app.UseApplicationPipeline();
 
 app.Run();
+return 0;
 
 public partial class Program;
