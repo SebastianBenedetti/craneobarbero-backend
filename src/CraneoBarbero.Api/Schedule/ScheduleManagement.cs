@@ -15,6 +15,7 @@ public sealed class ScheduleManagement(
     OpeningSchedule opening,
     BusinessClock clock,
     AppointmentChanges changes,
+    AppointmentNotifications notifications,
     IOptions<BusinessSettings> business)
 {
     private static readonly AppointmentStatus[] CancellableStatuses = [AppointmentStatus.Pending, AppointmentStatus.AwaitingPayment];
@@ -58,10 +59,16 @@ public sealed class ScheduleManagement(
         var refunded = 0;
         var totalRefunded = 0m;
 
+        var toNotify = new List<int>();
         if (cancelAffected)
         {
             foreach (var appointment in affected)
             {
+                if (appointment.Status == AppointmentStatus.Pending)
+                {
+                    toNotify.Add(appointment.Id);
+                }
+
                 if (await changes.CancelForBusinessReasonAsync(appointment, actor, ScheduleLimits.ScheduleRemovedReason, cancellationToken))
                 {
                     refunded++;
@@ -92,6 +99,7 @@ public sealed class ScheduleManagement(
             await transaction.CommitAsync(cancellationToken);
         }
 
+        await notifications.SendCancellationsAsync(toNotify, reason, cancellationToken);
         return new RemoveSlotsResult(removed, kept, cancelAffected ? affected.Count : 0, refunded, totalRefunded);
     }
 
@@ -237,16 +245,22 @@ public sealed class ScheduleManagement(
             details.Where(d => d.Refundable).Sum(d => d.Price), details);
     }
 
-    public async Task<int> CancelForBranchChangeAsync(int barberId, int adminId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<int>> CancelForBranchChangeAsync(int barberId, int adminId, CancellationToken cancellationToken)
     {
         var affected = await FutureOfBarberAsync(barberId, tracking: true, cancellationToken);
         var actor = new Actor(adminId, UserRole.Admin);
+        var confirmed = new List<int>();
         foreach (var appointment in affected)
         {
+            if (appointment.Status == AppointmentStatus.Pending)
+            {
+                confirmed.Add(appointment.Id);
+            }
+
             await changes.CancelForBusinessReasonAsync(appointment, actor, ScheduleLimits.BranchChangeReason, cancellationToken);
         }
 
-        return affected.Count;
+        return confirmed;
     }
 
     private Task<List<Appointment>> FutureOfBarberAsync(int barberId, bool tracking, CancellationToken cancellationToken)

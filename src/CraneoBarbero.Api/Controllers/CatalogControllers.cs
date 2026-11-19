@@ -239,7 +239,8 @@ public sealed class BarbersController(
     IPasswordHasher hasher,
     FutureAppointments futureAppointments,
     Schedule.SlotGenerator slotGenerator,
-    Schedule.ScheduleManagement schedule)
+    Schedule.ScheduleManagement schedule,
+    Appointments.AppointmentNotifications notifications)
     : ControllerBase
 {
     private const string NotFoundMessage = "No se encontró el barbero.";
@@ -330,6 +331,7 @@ public sealed class BarbersController(
         var branchId = request.BranchId!.Value;
 
         await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        IReadOnlyList<int> cancelled = [];
         if (branchId != barber.BranchId)
         {
             await EnsureActiveBranchAsync(branchId, cancellationToken);
@@ -343,7 +345,7 @@ public sealed class BarbersController(
 
             if (count > 0)
             {
-                await schedule.CancelForBranchChangeAsync(id, User.GetRequiredUserId(), cancellationToken);
+                cancelled = await schedule.CancelForBranchChangeAsync(id, User.GetRequiredUserId(), cancellationToken);
             }
         }
 
@@ -363,6 +365,7 @@ public sealed class BarbersController(
             await transaction.CommitAsync(cancellationToken);
         }
 
+        await notifications.SendCancellationsAsync(cancelled, null, cancellationToken);
         return await LoadAdminAsync(id, cancellationToken);
     }
 

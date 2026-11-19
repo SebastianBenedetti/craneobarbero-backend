@@ -19,6 +19,7 @@ public sealed class AppointmentsController(
     AppointmentChanges changes,
     Payments.AppointmentPayments payments,
     OpeningSchedule opening,
+    AppointmentNotifications notifications,
     IAuthorizationService authorization) : ControllerBase
 {
     private const string NotFoundMessage = "No se encontró el turno.";
@@ -96,6 +97,11 @@ public sealed class AppointmentsController(
             userId,
             request.PaymentMethod!.Value,
             Online: false), cancellationToken);
+
+        if (appointment.ClientId is not null)
+        {
+            await notifications.SendConfirmationAsync(appointment.Id, cancellationToken);
+        }
 
         return CreatedAtAction(nameof(Get), new { id = appointment.Id }, await LoadAsync(appointment.Id, cancellationToken));
     }
@@ -178,7 +184,13 @@ public sealed class AppointmentsController(
     {
         var actor = CurrentActor();
         var appointment = await changes.FindForAsync(id, actor, cancellationToken);
+        var wasConfirmed = appointment.Status == AppointmentStatus.Pending;
         await changes.CancelAsync(appointment, actor, request?.Reason, cancellationToken);
+        if (wasConfirmed)
+        {
+            await notifications.SendCancellationAsync(id, null, cancellationToken);
+        }
+
         return await LoadAsync(id, cancellationToken);
     }
 
@@ -187,7 +199,18 @@ public sealed class AppointmentsController(
     {
         var actor = CurrentActor();
         var appointment = await changes.FindForAsync(id, actor, cancellationToken);
+        var previousStart = appointment.AppointmentDate;
+        var previousClient = appointment.ClientId;
         await changes.RescheduleAsync(appointment, actor, request, cancellationToken);
+        if (appointment.ClientId is not null && appointment.ClientId != previousClient)
+        {
+            await notifications.SendConfirmationAsync(id, cancellationToken);
+        }
+        else if (appointment.AppointmentDate != previousStart)
+        {
+            await notifications.SendModificationAsync(id, cancellationToken);
+        }
+
         return await LoadAsync(id, cancellationToken);
     }
 

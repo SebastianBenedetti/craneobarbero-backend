@@ -77,6 +77,7 @@ public sealed class AppointmentJobsService(
     ILogger<AppointmentJobsService> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan ReminderInterval = TimeSpan.FromMinutes(15);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -86,6 +87,7 @@ public sealed class AppointmentJobsService(
         }
 
         using var timer = new PeriodicTimer(Interval);
+        DateTimeOffset? lastReminders = null;
         do
         {
             try
@@ -106,6 +108,28 @@ public sealed class AppointmentJobsService(
             catch (Exception exception)
             {
                 logger.LogError(exception, "Falló la actualización automática de turnos; se reintenta en un minuto");
+            }
+
+            if (lastReminders is null || DateTimeOffset.UtcNow - lastReminders >= ReminderInterval)
+            {
+                lastReminders = DateTimeOffset.UtcNow;
+                try
+                {
+                    using var scope = scopes.CreateScope();
+                    var reminders = await scope.ServiceProvider.GetRequiredService<AppointmentReminders>().RunAsync(stoppingToken);
+                    if (reminders.Sent > 0)
+                    {
+                        logger.LogInformation("Recordatorios de turnos enviados: {Sent}", reminders.Sent);
+                    }
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(exception, "Falló el envío de recordatorios; se reintenta en la próxima pasada");
+                }
             }
         }
         while (await WaitAsync(timer, stoppingToken));
