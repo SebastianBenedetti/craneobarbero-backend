@@ -40,6 +40,10 @@ public static class ErrorCodes
     public const string PaymentProviderError = "payment_provider_error";
     public const string NotPayable = "not_payable";
     public const string InvalidSignature = "invalid_signature";
+    public const string NotAClient = "not_a_client";
+    public const string LastAdmin = "last_admin";
+    public const string InvalidPassword = "invalid_password";
+    public const string UseBarbersEndpoint = "use_barbers_endpoint";
 }
 
 public static class ErrorMessages

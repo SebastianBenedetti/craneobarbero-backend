@@ -242,10 +242,50 @@ public sealed class AppointmentsController(
     }
 }
 
+public sealed record BarberClientResponse(
+    int Id,
+    string Name,
+    string? Phone,
+    int CompletedAppointments,
+    int UpcomingAppointments,
+    DateTimeOffset? LastAppointmentDate,
+    DateTimeOffset? NextAppointmentDate);
+
 [ApiController]
 [Route("clients")]
-public sealed class ClientsController(AppDbContext db) : ControllerBase
+public sealed class ClientsController(AppDbContext db, Configuration.BusinessClock clock) : ControllerBase
 {
+    [Authorize(Policy = Policies.Barber)]
+    [HttpGet("mine")]
+    public async Task<IReadOnlyList<BarberClientResponse>> Mine(CancellationToken cancellationToken)
+    {
+        var barberId = User.GetRequiredUserId();
+        var now = clock.UtcNow;
+        var rows = await db.Appointments.AsNoTracking()
+            .Where(a => a.BarberId == barberId && a.ClientId != null &&
+                        (a.Status == AppointmentStatus.Completed || a.Status == AppointmentStatus.Pending))
+            .Select(a => new { ClientId = a.ClientId!.Value, a.Status, a.AppointmentDate })
+            .ToListAsync(cancellationToken);
+        var clientIds = rows.Select(r => r.ClientId).Distinct().ToList();
+        var clients = await db.Users.AsNoTracking()
+            .Where(u => clientIds.Contains(u.Id) && u.Role == UserRole.Client && u.IsActive)
+            .Select(u => new { u.Id, u.Name, u.Phone })
+            .ToListAsync(cancellationToken);
+
+        return clients.Select(c =>
+            {
+                var own = rows.Where(r => r.ClientId == c.Id).ToList();
+                var done = own.Where(r => r.Status == AppointmentStatus.Completed).ToList();
+                var upcoming = own.Where(r => r.Status == AppointmentStatus.Pending && r.AppointmentDate > now).ToList();
+                return new BarberClientResponse(c.Id, c.Name, c.Phone, done.Count, upcoming.Count,
+                    done.Count > 0 ? done.Max(r => r.AppointmentDate) : null,
+                    upcoming.Count > 0 ? upcoming.Min(r => r.AppointmentDate) : null);
+            })
+            .OrderByDescending(c => c.CompletedAppointments)
+            .ThenBy(c => c.Name)
+            .ToList();
+    }
+
     [Authorize(Policy = Policies.BarberOrAdmin)]
     [HttpGet("search")]
     public async Task<IReadOnlyList<ClientSearchResult>> Search([FromQuery] string? q, CancellationToken cancellationToken)

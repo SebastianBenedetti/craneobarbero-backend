@@ -90,6 +90,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Schedule.ScheduleManagement>();
         services.AddScoped<Appointments.AppointmentBooking>();
         services.AddScoped<Appointments.AppointmentChanges>();
+        services.AddScoped<Accounts.AccountClosure>();
         services.AddScoped<Payments.AppointmentPayments>();
         services.AddScoped<Appointments.IAppointmentRefunds>(provider => provider.GetRequiredService<Payments.AppointmentPayments>());
         services.AddOptions<Payments.MercadoPagoSettings>()
