@@ -7,4 +7,6 @@ public static class EnvironmentVariables
     public const string DatabaseUrl = "DATABASE_URL";
     public const string DatabaseRootCertificate = "DATABASE_ROOT_CERT";
     public const string JwtSecret = "JWT_SECRET";
+    public const string AdminEmail = "ADMIN_EMAIL";
+    public const string AdminPassword = "ADMIN_PASSWORD";
 }
