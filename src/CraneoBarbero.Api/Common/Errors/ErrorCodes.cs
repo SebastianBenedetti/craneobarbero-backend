@@ -31,6 +31,10 @@ public static class ErrorCodes
     public const string CutUnavailable = "cut_unavailable";
     public const string ClientUnavailable = "client_unavailable";
     public const string EmailNotVerified = "email_not_verified";
+    public const string NotCancellable = "not_cancellable";
+    public const string NotModifiable = "not_modifiable";
+    public const string ModificationWindowClosed = "modification_window_closed";
+    public const string ManualFieldsOnly = "manual_fields_only";
 }
 
 public static class ErrorMessages
