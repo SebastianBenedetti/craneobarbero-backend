@@ -4,7 +4,7 @@ using CraneoBarbero.Api.Tests.Infrastructure;
 
 namespace CraneoBarbero.Api.Tests.Security;
 
-public sealed class SecurityTests(ApiFactory factory) : IClassFixture<ApiFactory>
+public sealed class SecurityTests(SecurityTests.LowLimitFactory factory) : IClassFixture<SecurityTests.LowLimitFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();
 
@@ -84,6 +84,19 @@ public sealed class SecurityTests(ApiFactory factory) : IClassFixture<ApiFactory
         var body = await _client.GetStringAsync("/test/payment-methods");
 
         Assert.Equal("[\"cash\",\"card\",\"transfer\",\"wallet\",\"mercadopago\"]", body);
+    }
+
+    public sealed class LowLimitFactory : ApiFactory
+    {
+        protected override IDictionary<string, string?> Settings
+        {
+            get
+            {
+                var settings = base.Settings;
+                settings["Security:AuthRateLimit:PermitLimit"] = "3";
+                return settings;
+            }
+        }
     }
 
     private static HttpRequestMessage Preflight(string origin)

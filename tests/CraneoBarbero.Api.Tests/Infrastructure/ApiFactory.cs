@@ -29,7 +29,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["FRONTEND_URL"] = AllowedOrigin,
         ["Security:MaxRequestBodyBytes"] = "2048",
         ["Security:GlobalRateLimit:PermitLimit"] = "10000",
-        ["Security:AuthRateLimit:PermitLimit"] = "3",
+        ["Security:AuthRateLimit:PermitLimit"] = "1000",
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
