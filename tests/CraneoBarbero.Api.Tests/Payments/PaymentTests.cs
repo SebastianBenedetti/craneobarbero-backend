@@ -132,6 +132,22 @@ public sealed class PaymentTests(PaymentApiFactory factory) : IClassFixture<Paym
     }
 
     [Fact]
+    public async Task Unsigned_legacy_notices_and_other_topics_are_ignored_without_errors()
+    {
+        var s = await SetupAsync();
+        var id = await BookAsync(s, Local(2026, 11, 24, 12, 30));
+        factory.Gateway.Payments["ipn-1"] = new GatewayPayment("ipn-1", "approved", $"appointment:{id}", 1500m, Now);
+        var anonymous = factory.CreateClient();
+
+        var legacy = await anonymous.PostAsJsonAsync("/payments/webhook?topic=payment&id=ipn-1", new { });
+        var order = await anonymous.PostAsJsonAsync("/payments/webhook?topic=merchant_order&id=99", new { });
+
+        Assert.Equal(HttpStatusCode.OK, legacy.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, order.StatusCode);
+        Assert.Equal(AppointmentStatus.AwaitingPayment, (await LoadAsync(id)).Status);
+    }
+
+    [Fact]
     public async Task Returning_from_checkout_confirms_with_the_gateway_and_checks_ownership()
     {
         var s = await SetupAsync();
