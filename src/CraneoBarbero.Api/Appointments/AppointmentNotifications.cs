@@ -90,7 +90,7 @@ public sealed class AppointmentNotifications(
             appointment.Branch.Phone,
             appointment.Barber!.Name,
             appointment.Cut!.Name);
-        var attachment = new EmailAttachment(AppointmentCalendar.FileName, calendar.Build(appointment));
+        EmailAttachment? attachment = null;
 
         switch (type)
         {

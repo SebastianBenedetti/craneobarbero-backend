@@ -38,7 +38,7 @@ public sealed class CalendarController(AppDbContext db, AppointmentCalendar cale
         }
 
         var appointment = await LoadAsync(id, cancellationToken) ?? throw new NotFoundException(NotFoundMessage);
-        return Export(appointment);
+        return Export(appointment, inline: true);
     }
 
     private Task<Appointment?> LoadAsync(int id, CancellationToken cancellationToken) =>
@@ -46,7 +46,7 @@ public sealed class CalendarController(AppDbContext db, AppointmentCalendar cale
             .Include(a => a.Barber).Include(a => a.Cut).Include(a => a.Branch)
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
-    private FileContentResult Export(Appointment appointment)
+    private FileContentResult Export(Appointment appointment, bool inline = false)
     {
         if (appointment.Status is not (AppointmentStatus.Pending or AppointmentStatus.Cancelled))
         {
@@ -54,6 +54,12 @@ public sealed class CalendarController(AppDbContext db, AppointmentCalendar cale
         }
 
         Response.Headers.CacheControl = "no-store";
+        if (inline)
+        {
+            Response.Headers.ContentDisposition = $"inline; filename=\"{AppointmentCalendar.FileName}\"";
+            return File(calendar.Build(appointment), AppointmentCalendar.ContentType);
+        }
+
         return File(calendar.Build(appointment), AppointmentCalendar.ContentType, AppointmentCalendar.FileName);
     }
 }
