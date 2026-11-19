@@ -16,6 +16,7 @@ namespace CraneoBarbero.Api.Controllers;
 public sealed class AppointmentsController(
     AppDbContext db,
     AppointmentBooking booking,
+    AppointmentChanges changes,
     OpeningSchedule opening,
     IAuthorizationService authorization) : ControllerBase
 {
@@ -147,6 +148,43 @@ public sealed class AppointmentsController(
 
         await authorization.EnsureAuthorizedAsync(User, new OwnedResource(appointment.ClientId, appointment.BarberId));
         return AppointmentResponse.From(appointment);
+    }
+
+    [HttpGet("{id}/cancellation-preview")]
+    public async Task<CancellationPreview> CancellationPreview(int id, CancellationToken cancellationToken)
+    {
+        var actor = CurrentActor();
+        var appointment = await changes.FindForAsync(id, actor, cancellationToken);
+        return await changes.PreviewCancellationAsync(appointment, actor, cancellationToken);
+    }
+
+    [HttpPost("{id}/cancel")]
+    public async Task<AppointmentResponse> Cancel(
+        int id,
+        [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] CancelAppointmentRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var actor = CurrentActor();
+        var appointment = await changes.FindForAsync(id, actor, cancellationToken);
+        await changes.CancelAsync(appointment, actor, request?.Reason, cancellationToken);
+        return await LoadAsync(id, cancellationToken);
+    }
+
+    [HttpPut("{id}/reschedule")]
+    public async Task<AppointmentResponse> Reschedule(int id, RescheduleAppointmentRequest request, CancellationToken cancellationToken)
+    {
+        var actor = CurrentActor();
+        var appointment = await changes.FindForAsync(id, actor, cancellationToken);
+        await changes.RescheduleAsync(appointment, actor, request, cancellationToken);
+        return await LoadAsync(id, cancellationToken);
+    }
+
+    private Actor CurrentActor()
+    {
+        var role = User.IsInRole(Roles.Admin) ? UserRole.Admin
+            : User.IsInRole(Roles.Barber) ? UserRole.Barber
+            : UserRole.Client;
+        return new Actor(User.GetRequiredUserId(), role);
     }
 
     private IQueryable<Appointment> Full() => db.Appointments.AsNoTracking()
