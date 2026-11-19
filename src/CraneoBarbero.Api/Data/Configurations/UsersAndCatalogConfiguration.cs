@@ -64,8 +64,10 @@ public static class UsersAndCatalogConfiguration
         modelBuilder.Entity<AvailableSlot>(entity =>
         {
             entity.ToTable("AvailableSlots");
-            entity.HasIndex(s => new { s.BarberId, s.StartAt }).IsUnique();
+            entity.HasIndex(s => new { s.BarberId, s.StartAt }, "IX_AvailableSlots_barberId_startAt").IsUnique();
             entity.HasIndex(s => s.StartAt);
+            entity.HasIndex(s => new { s.BarberId, s.StartAt }, "IX_AvailableSlots_open")
+                .HasFilter("\"deletedAt\" IS NULL");
             entity.Property(s => s.DeleteReason).HasMaxLength(300);
             entity.HasOne<User>().WithMany().HasForeignKey(s => s.BarberId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<User>().WithMany().HasForeignKey(s => s.CreatedById).OnDelete(DeleteBehavior.SetNull);

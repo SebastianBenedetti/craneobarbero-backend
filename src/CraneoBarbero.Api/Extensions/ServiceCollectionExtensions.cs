@@ -83,6 +83,19 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<AdminSeedHostedService>();
         services.AddScoped<LegacyImporter>();
         services.AddScoped<Catalog.FutureAppointments>();
+        services.AddScoped<Schedule.OpeningSchedule>();
+        services.AddScoped<Schedule.SlotGenerator>();
+        services.AddScoped<Schedule.AvailabilityService>();
+        services.AddScoped<Schedule.HolidayService>();
+        services.AddOptions<Schedule.ScheduleSettings>().BindConfiguration(Schedule.ScheduleSettings.SectionName).ValidateOnStart();
+        services.AddSingleton<IValidateOptions<Schedule.ScheduleSettings>, Schedule.ScheduleSettingsValidator>();
+        services.AddHttpClient<Schedule.IHolidaySource, Schedule.ArgentinaDatosHolidaySource>((provider, client) =>
+        {
+            var settings = provider.GetRequiredService<IOptions<Schedule.ScheduleSettings>>().Value;
+            client.BaseAddress = new Uri(settings.HolidaysApiUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.HolidaysApiTimeoutSeconds);
+        });
+        services.AddHostedService<Schedule.ScheduleJobsService>();
 
         return services;
     }

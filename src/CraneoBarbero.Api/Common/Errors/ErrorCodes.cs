@@ -24,6 +24,7 @@ public static class ErrorCodes
     public const string SamePassword = "same_password";
     public const string HasFutureAppointments = "has_future_appointments";
     public const string BranchInactive = "branch_inactive";
+    public const string HolidayExists = "holiday_exists";
 }
 
 public static class ErrorMessages

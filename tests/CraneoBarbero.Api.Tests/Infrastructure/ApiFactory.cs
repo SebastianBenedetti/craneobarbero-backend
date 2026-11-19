@@ -32,6 +32,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["Security:GlobalRateLimit:PermitLimit"] = "10000",
         ["Security:AuthRateLimit:PermitLimit"] = "1000",
         ["Email:RetryDelaySeconds"] = "0",
+        ["Schedule:JobsEnabled"] = "false",
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

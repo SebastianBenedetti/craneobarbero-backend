@@ -260,8 +260,11 @@ namespace CraneoBarbero.Api.Data.Migrations
 
                     b.HasIndex("StartAt");
 
-                    b.HasIndex("BarberId", "StartAt")
+                    b.HasIndex(new[] { "BarberId", "StartAt" }, "IX_AvailableSlots_barberId_startAt")
                         .IsUnique();
+
+                    b.HasIndex(new[] { "BarberId", "StartAt" }, "IX_AvailableSlots_open")
+                        .HasFilter("\"deletedAt\" IS NULL");
 
                     b.ToTable("AvailableSlots", (string)null);
                 });
