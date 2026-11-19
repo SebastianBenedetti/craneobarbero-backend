@@ -135,6 +135,7 @@ public sealed class AppointmentNotifications(
             ScheduleLimits.ScheduleRemovedReason => "La barbería no va a atender en ese horario" +
                                                     (string.IsNullOrWhiteSpace(detail) ? "." : $": {detail.Trim()}."),
             ScheduleLimits.BranchChangeReason => "El barbero pasó a atender en otra sucursal.",
+            Accounts.AccountClosureReasons.Deactivated => byClient ? null : "Tu cuenta fue desactivada por el local.",
             _ when !byClient && !string.IsNullOrWhiteSpace(appointment.CancellationReason) => $"Motivo: {appointment.CancellationReason}",
             _ => null,
         };

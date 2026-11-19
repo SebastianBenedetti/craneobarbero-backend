@@ -5,6 +5,7 @@ using CraneoBarbero.Api.Contracts;
 using CraneoBarbero.Api.Data;
 using CraneoBarbero.Api.Security;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +15,17 @@ namespace CraneoBarbero.Api.Controllers;
 public sealed record UpdateProfileRequest(string? Name, string? Phone, string? ImageUrl);
 
 public sealed record ChangePasswordRequest(string? CurrentPassword, string? NewPassword);
+
+public sealed record ConfirmPasswordRequest(string? Password);
+
+public sealed class ConfirmPasswordRequestValidator : AbstractValidator<ConfirmPasswordRequest>
+{
+    public ConfirmPasswordRequestValidator()
+    {
+        RuleFor(r => r.Password).NotEmpty().WithMessage("Ingresá tu contraseña para confirmar.")
+            .MaximumLength(128).WithMessage("La contraseña es demasiado larga.");
+    }
+}
 
 public sealed class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequest>
 {
@@ -37,7 +49,7 @@ public sealed class ChangePasswordRequestValidator : AbstractValidator<ChangePas
 
 [ApiController]
 [Route("me")]
-public sealed class MeController(AppDbContext db, IPasswordHasher hasher) : ControllerBase
+public sealed class MeController(AppDbContext db, IPasswordHasher hasher, AccountClosure closure) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<UserResponse>> Get(CancellationToken cancellationToken)
@@ -79,6 +91,43 @@ public sealed class MeController(AppDbContext db, IPasswordHasher hasher) : Cont
         await db.SaveChangesAsync(cancellationToken);
 
         return Ok(new MessageResponse("Tu contraseña se cambió."));
+    }
+
+    [Authorize(Policy = Policies.Client)]
+    [HttpGet("closure-preview")]
+    public async Task<ClosurePreview> ClosurePreview(CancellationToken cancellationToken)
+    {
+        var user = await FindCurrentUserAsync(tracking: false, cancellationToken);
+        return await closure.PreviewAsync(user.Id, new Appointments.Actor(user.Id, user.Role), cancellationToken);
+    }
+
+    [Authorize(Policy = Policies.Client)]
+    [HttpPost("deactivate")]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
+    public async Task<ClosureResult> Deactivate(ConfirmPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var user = await FindConfirmedAsync(request, cancellationToken);
+        return await closure.DeactivateAsync(user, new Appointments.Actor(user.Id, user.Role), cancellationToken);
+    }
+
+    [Authorize(Policy = Policies.Client)]
+    [HttpDelete]
+    [EnableRateLimiting(RateLimitPolicies.Auth)]
+    public async Task<ClosureResult> Delete([FromBody] ConfirmPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var user = await FindConfirmedAsync(request, cancellationToken);
+        return await closure.DeleteAsync(user, new Appointments.Actor(user.Id, user.Role), cancellationToken);
+    }
+
+    private async Task<Domain.Entities.User> FindConfirmedAsync(ConfirmPasswordRequest request, CancellationToken cancellationToken)
+    {
+        var user = await FindCurrentUserAsync(tracking: true, cancellationToken);
+        if (!hasher.Verify(request.Password!, user.PasswordHash))
+        {
+            throw new BadRequestException("La contraseña no es correcta.", ErrorCodes.InvalidPassword);
+        }
+
+        return user;
     }
 
     private async Task<Domain.Entities.User> FindCurrentUserAsync(bool tracking, CancellationToken cancellationToken)
