@@ -1,0 +1,8 @@
+namespace CraneoBarbero.Api.Domain.Enums;
+
+public enum PaymentStatus
+{
+    Unpaid,
+    Paid,
+    Refunded,
+}

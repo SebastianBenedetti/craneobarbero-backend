@@ -3,7 +3,7 @@ using CraneoBarbero.Api.Domain.Enums;
 
 namespace CraneoBarbero.Api.Domain.Entities;
 
-public class User
+public class User : IHasTimestamps
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -21,6 +21,9 @@ public class User
     public bool EmailVerified { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+
+    [JsonIgnore]
+    public Branch? Branch { get; set; }
 
     public static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 }
