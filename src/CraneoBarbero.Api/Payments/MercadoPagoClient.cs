@@ -146,7 +146,7 @@ public sealed class MercadoPagoClient(HttpClient http, IOptions<MercadoPagoSetti
         }
 
         var approved = json.TryGetProperty("date_approved", out var date) && date.ValueKind == JsonValueKind.String
-            ? DateTimeOffset.Parse(date.GetString()!, CultureInfo.InvariantCulture)
+            ? DateTimeOffset.Parse(date.GetString()!, CultureInfo.InvariantCulture).ToUniversalTime()
             : (DateTimeOffset?)null;
         return new GatewayPayment(
             json.GetProperty("id").ToString(),

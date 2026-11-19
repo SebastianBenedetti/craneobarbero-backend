@@ -6,6 +6,7 @@ using CraneoBarbero.Api.Data;
 using CraneoBarbero.Api.Domain.Entities;
 using CraneoBarbero.Api.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace CraneoBarbero.Api.Payments;
 
@@ -160,7 +161,8 @@ public sealed class AppointmentPayments(
         {
             await db.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (exception is DbUpdateConcurrencyException
+                                                   || exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             db.ChangeTracker.Clear();
             logger.LogInformation("El pago {PaymentId} ya había sido procesado", paymentId);
