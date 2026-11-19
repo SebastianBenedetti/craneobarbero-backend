@@ -87,6 +87,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Schedule.SlotGenerator>();
         services.AddScoped<Schedule.AvailabilityService>();
         services.AddScoped<Schedule.HolidayService>();
+        services.AddScoped<Appointments.AppointmentBooking>();
         services.AddOptions<Schedule.ScheduleSettings>().BindConfiguration(Schedule.ScheduleSettings.SectionName).ValidateOnStart();
         services.AddSingleton<IValidateOptions<Schedule.ScheduleSettings>, Schedule.ScheduleSettingsValidator>();
         services.AddHttpClient<Schedule.IHolidaySource, Schedule.ArgentinaDatosHolidaySource>((provider, client) =>

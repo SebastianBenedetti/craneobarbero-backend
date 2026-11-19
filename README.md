@@ -30,6 +30,18 @@ La conexión a la base siempre verifica el certificado del servidor. Por defecto
 
 Las reglas del negocio (horario de atención, grilla de turnos, ventanas de cancelación y de reserva, vencimiento del pago, zona horaria y medios de pago) están en la sección `Business` de `appsettings.json`.
 
+## Fechas y horarios
+
+- La zona horaria del negocio es `America/Argentina/Buenos_Aires` (UTC−3). Todas las reglas de horario (franjas de atención, días, feriados, ventana de 60 días) se evalúan en esa zona.
+- En la base y en la API los instantes se guardan y se devuelven en UTC (por ejemplo, un turno de las 09:00 de Argentina es `12:00Z`). Cuando la API devuelve un horario para mostrar, además agrega la hora local (`"time": "09:00"`). Los días (`date`) siempre son días de Argentina.
+
+## Agenda y feriados
+
+- Los horarios de cada barbero (bloques de 30 minutos del horario de atención) se generan solos hasta 12 meses hacia adelante, sin domingos ni feriados. El proceso corre al arrancar la API, todos los días después de las 00:30 y al crear o reactivar un barbero. Nunca vuelve a crear un horario que el admin eliminó.
+- Los feriados nacionales se sincronizan desde la API pública de [ArgentinaDatos](https://argentinadatos.com/docs) (`https://api.argentinadatos.com/v1/feriados/{año}`, gratuita y sin cuenta), para el año en curso y el siguiente, al arrancar y cada 7 días. Se guardan los de tipo `inamovible` y `trasladable`; los `puente` (días no laborables con fines turísticos) no se cargan solos: los agrega el admin como día no laborable propio. Si la API no responde, se reintenta en la pasada siguiente y los feriados se pueden cargar a mano.
+- Un feriado nuevo cierra los horarios libres de ese día y deja los que ya tienen turnos, para que el admin decida qué hacer con ellos.
+- La configuración está en la sección `Schedule` de `appsettings.json` (URL de la API de feriados, intervalo de sincronización, hora de generación y días que se conservan los horarios pasados). `Schedule:JobsEnabled` apaga estos procesos; en desarrollo están apagados.
+
 ## Base de datos
 
 El esquema se crea y se actualiza solo con migraciones de EF Core; la API nunca modifica tablas al arrancar.
