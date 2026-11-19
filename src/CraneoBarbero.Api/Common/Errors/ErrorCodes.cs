@@ -16,6 +16,12 @@ public static class ErrorCodes
     public const string UnsupportedMediaType = "unsupported_media_type";
     public const string TooManyRequests = "too_many_requests";
     public const string InternalError = "internal_error";
+    public const string InvalidCredentials = "invalid_credentials";
+    public const string EmailInUse = "email_in_use";
+    public const string InvalidToken = "invalid_token";
+    public const string EmailAlreadyVerified = "email_already_verified";
+    public const string InvalidCurrentPassword = "invalid_current_password";
+    public const string SamePassword = "same_password";
 }
 
 public static class ErrorMessages
