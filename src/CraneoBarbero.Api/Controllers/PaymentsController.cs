@@ -45,15 +45,22 @@ public sealed class PaymentsController(
             }
         }
 
-        if (!gateway.IsValidWebhookSignature(Request.Headers["x-signature"].FirstOrDefault(), Request.Headers["x-request-id"].FirstOrDefault(), dataId))
-        {
-            logger.LogWarning("Notificación de Mercado Pago con firma inválida");
-            throw new UnauthorizedException("Firma inválida.", ErrorCodes.InvalidSignature);
-        }
-
         if (!string.Equals(type, "payment", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(dataId))
         {
             return Ok();
+        }
+
+        if (!gateway.IsValidWebhookSignature(Request.Headers["x-signature"].FirstOrDefault(), Request.Headers["x-request-id"].FirstOrDefault(), dataId))
+        {
+            var legacyNotice = Request.Query.ContainsKey("topic") && !Request.Query.ContainsKey("data.id");
+            if (legacyNotice)
+            {
+                logger.LogInformation("Aviso de Mercado Pago en formato IPN sin firma: se ignora");
+                return Ok();
+            }
+
+            logger.LogWarning("Notificación de Mercado Pago con firma inválida");
+            throw new UnauthorizedException("Firma inválida.", ErrorCodes.InvalidSignature);
         }
 
         await payments.ProcessGatewayPaymentAsync(dataId, cancellationToken);
