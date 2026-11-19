@@ -9,6 +9,7 @@ public sealed class EmailSettings
     public string FromEmail { get; set; } = string.Empty;
     public string FromName { get; set; } = "Cráneo Barbero";
     public string FrontendBaseUrl { get; set; } = string.Empty;
+    public string ApiBaseUrl { get; set; } = string.Empty;
     public int TimeoutSeconds { get; set; } = 15;
     public int RetryDelaySeconds { get; set; } = 5;
 

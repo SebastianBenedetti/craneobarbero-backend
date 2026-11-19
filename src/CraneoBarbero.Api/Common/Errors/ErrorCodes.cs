@@ -36,6 +36,7 @@ public static class ErrorCodes
     public const string ModificationWindowClosed = "modification_window_closed";
     public const string ManualFieldsOnly = "manual_fields_only";
     public const string PreviewOutdated = "preview_outdated";
+    public const string CalendarUnavailable = "calendar_unavailable";
     public const string PaymentProviderError = "payment_provider_error";
     public const string NotPayable = "not_payable";
     public const string InvalidSignature = "invalid_signature";

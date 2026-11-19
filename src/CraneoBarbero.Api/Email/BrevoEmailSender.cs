@@ -9,7 +9,10 @@ namespace CraneoBarbero.Api.Email;
 public sealed class BrevoEmailSender(HttpClient http, IOptions<EmailSettings> settings, ILogger<BrevoEmailSender> logger)
     : IEmailSender
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
 
     public async Task<bool> SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
@@ -28,7 +31,10 @@ public sealed class BrevoEmailSender(HttpClient http, IOptions<EmailSettings> se
             sender,
             message.Subject,
             message.HtmlBody,
-            message.TextBody);
+            message.TextBody,
+            message.Attachments is { Count: > 0 } attachments
+                ? attachments.Select(a => new BrevoAttachment(a.FileName, Convert.ToBase64String(a.Content))).ToList()
+                : null);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "smtp/email");
         request.Headers.Add("api-key", options.BrevoApiKey);
@@ -54,5 +60,8 @@ public sealed class BrevoEmailSender(HttpClient http, IOptions<EmailSettings> se
         BrevoContact ReplyTo,
         string Subject,
         string HtmlContent,
-        string TextContent);
+        string TextContent,
+        IReadOnlyList<BrevoAttachment>? Attachment);
+
+    private sealed record BrevoAttachment(string Name, string Content);
 }
