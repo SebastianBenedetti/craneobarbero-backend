@@ -21,6 +21,7 @@ public sealed class AppointmentPayments(
     AppDbContext db,
     IPaymentGateway gateway,
     BusinessClock clock,
+    IServiceProvider services,
     ILogger<AppointmentPayments> logger) : IAppointmentRefunds
 {
     public const string ReferencePrefix = "appointment:";
@@ -140,13 +141,14 @@ public sealed class AppointmentPayments(
         var alreadyApproved = payment.ExternalId == remote.Id && payment.Status is TransactionStatus.Approved or TransactionStatus.Refunded;
         payment.ExternalId = remote.Id;
 
+        var confirmed = false;
         switch (remote.Status)
         {
             case "approved" when !alreadyApproved:
                 payment.Status = TransactionStatus.Approved;
                 payment.Amount = remote.Amount > 0 ? remote.Amount : payment.Amount;
                 payment.PaidAt = remote.ApprovedAt ?? clock.UtcNow;
-                await ApplyApprovalAsync(appointment, payment, remote, cancellationToken);
+                confirmed = await ApplyApprovalAsync(appointment, payment, remote, cancellationToken);
                 break;
             case "rejected" or "cancelled" when payment.Status == TransactionStatus.Pending:
                 payment.Status = TransactionStatus.Rejected;
@@ -166,6 +168,12 @@ public sealed class AppointmentPayments(
         {
             db.ChangeTracker.Clear();
             logger.LogInformation("El pago {PaymentId} ya había sido procesado", paymentId);
+            return appointmentId;
+        }
+
+        if (confirmed)
+        {
+            await services.GetRequiredService<AppointmentNotifications>().SendConfirmationAsync(appointmentId, cancellationToken);
         }
 
         return appointmentId;
@@ -232,7 +240,7 @@ public sealed class AppointmentPayments(
                appointmentId > 0;
     }
 
-    private async Task ApplyApprovalAsync(Appointment appointment, Payment payment, GatewayPayment remote, CancellationToken cancellationToken)
+    private async Task<bool> ApplyApprovalAsync(Appointment appointment, Payment payment, GatewayPayment remote, CancellationToken cancellationToken)
     {
         if (appointment.Status == AppointmentStatus.AwaitingPayment && remote.Amount >= appointment.Price)
         {
@@ -241,7 +249,7 @@ public sealed class AppointmentPayments(
             appointment.PaymentMethod = PaymentMethod.MercadoPago;
             appointment.PaidAt = payment.PaidAt;
             appointment.PaymentExpiresAt = null;
-            return;
+            return true;
         }
 
         if (appointment.Status == AppointmentStatus.Pending && appointment.PaymentStatus == PaymentStatus.Paid)
@@ -265,5 +273,7 @@ public sealed class AppointmentPayments(
         {
             logger.LogError(exception, "No se pudo reembolsar el pago {PaymentId}; revisarlo a mano en Mercado Pago", remote.Id);
         }
+
+        return false;
     }
 }

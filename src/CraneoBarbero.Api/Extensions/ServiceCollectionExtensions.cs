@@ -153,6 +153,12 @@ public static class ServiceCollectionExtensions
 
                 settings.FrontendBaseUrl =
                     CorsSettings.ParseOrigins(configuration[EnvironmentVariables.FrontendUrl]).FirstOrDefault() ?? string.Empty;
+
+                var external = configuration[EnvironmentVariables.RenderExternalUrl];
+                if (!string.IsNullOrWhiteSpace(external))
+                {
+                    settings.ApiBaseUrl = external.Trim().TrimEnd('/');
+                }
             });
 
         services.AddHttpClient<IEmailSender, BrevoEmailSender>((provider, client) =>
@@ -166,6 +172,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IEmailQueue>(provider => provider.GetRequiredService<EmailQueue>());
         services.AddHostedService<EmailDispatcher>();
         services.AddScoped<AccountEmailService>();
+        services.AddSingleton<Calendar.AppointmentCalendar>();
+        services.AddSingleton<Calendar.CalendarLinks>();
+        services.AddScoped<Appointments.AppointmentNotifications>();
+        services.AddScoped<Appointments.AppointmentReminders>();
         services.AddScoped<AuthTokenService>();
 
         return services;
