@@ -119,7 +119,7 @@ public sealed partial class LegacyImporter(AppDbContext db, TimeProvider timePro
             Name = row.Required("name").Trim(),
             Email = User.NormalizeEmail(row.Required("email")),
             PasswordHash = passwordHash,
-            Phone = Optional(row["phone"]),
+            Phone = role == UserRole.Barber ? null : Optional(row["phone"]),
             ImageUrl = Optional(row["imageUrl"]),
             BranchId = role == UserRole.Barber ? ParseInt(row.Required("branchId")) : null,
             StartDate = Optional(row["startDate"]) is { } start ? DateOnly.Parse(start[..10], CultureInfo.InvariantCulture) : null,

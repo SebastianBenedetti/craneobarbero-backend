@@ -46,7 +46,6 @@ public sealed class PublicEndpointsTests : IClassFixture<ApiFactory>, IAsyncLife
         _client1 = NewUser($"cliente-{suffix}@example.com", UserRole.Client, hash);
         _inactive = NewUser($"inactivo-{suffix}@example.com", UserRole.Client, hash, isActive: false);
         _barber = NewUser($"barbero-{suffix}@example.com", UserRole.Barber, hash, active.Id);
-        _barber.Phone = "3415550000";
         _inactiveBarber = NewUser($"barbero-baja-{suffix}@example.com", UserRole.Barber, hash, active.Id, isActive: false);
         _closedBranchBarber = NewUser($"barbero-cerrada-{suffix}@example.com", UserRole.Barber, hash, closed.Id);
         db.Users.AddRange(_client1, _inactive, _barber, _inactiveBarber, _closedBranchBarber);
@@ -150,7 +149,7 @@ public sealed class PublicEndpointsTests : IClassFixture<ApiFactory>, IAsyncLife
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.DoesNotContain("@example.com", body);
-        Assert.DoesNotContain("3415550000", body);
+        Assert.DoesNotContain("phone", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("password", body, StringComparison.OrdinalIgnoreCase);
 
         var barbers = JsonDocument.Parse(body).RootElement.EnumerateArray().ToList();

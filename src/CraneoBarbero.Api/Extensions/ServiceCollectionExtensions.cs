@@ -82,6 +82,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AdminSeeder>();
         services.AddHostedService<AdminSeedHostedService>();
         services.AddScoped<LegacyImporter>();
+        services.AddScoped<Catalog.FutureAppointments>();
 
         return services;
     }

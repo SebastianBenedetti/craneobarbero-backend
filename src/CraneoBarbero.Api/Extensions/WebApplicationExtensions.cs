@@ -13,6 +13,18 @@ public static class WebApplicationExtensions
     public static WebApplication UseApplicationPipeline(this WebApplication app)
     {
         app.UseForwardedHeaders();
+        app.UseSerilogRequestLogging(options =>
+        {
+            options.EnrichDiagnosticContext = (diagnostics, context) =>
+            {
+                var userId = context.User.GetUserId();
+                if (userId is not null)
+                {
+                    diagnostics.Set("UserId", userId.Value);
+                }
+            };
+        });
+
         app.UseExceptionHandler();
         app.UseStatusCodePages(context =>
         {
@@ -31,18 +43,6 @@ public static class WebApplicationExtensions
         {
             app.UseHsts();
         }
-
-        app.UseSerilogRequestLogging(options =>
-        {
-            options.EnrichDiagnosticContext = (diagnostics, context) =>
-            {
-                var userId = context.User.GetUserId();
-                if (userId is not null)
-                {
-                    diagnostics.Set("UserId", userId.Value);
-                }
-            };
-        });
 
         app.UseMiddleware<RequestBodyLimitMiddleware>();
         app.UseRouting();
