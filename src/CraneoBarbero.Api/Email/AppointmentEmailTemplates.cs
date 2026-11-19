@@ -50,7 +50,7 @@ public static class AppointmentEmailTemplates
             DetailLines(details, "Nueva fecha y hora"),
             [],
             links,
-            "Si ya lo habías agregado a tu calendario, abrí el archivo adjunto para actualizarlo.",
+            "Si lo habías agregado a tu calendario, volvé a agregarlo con los botones de arriba y borrá el anterior.",
             calendar);
 
     public static EmailMessage Reminder(string toEmail, AppointmentEmailDetails details, IReadOnlyList<EmailLink> links, EmailAttachment? calendar) =>
@@ -112,9 +112,9 @@ public static class AppointmentEmailTemplates
             $"<p style=\"margin:16px 0 0;font-size:15px;line-height:1.5;\">{html.Encode(line)}</p>"));
         var linkHtml = string.Concat(links.Select(link =>
             $"<a href=\"{html.Encode(link.Url)}\" style=\"display:inline-block;margin:0 8px 8px 0;background:#ffc831;color:#1e1e1e;text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:6px;\">{html.Encode(link.Label)}</a>"));
-        var attachmentNote = calendar is null
-            ? string.Empty
-            : "<p style=\"margin:16px 0 0;font-size:13px;color:#555555;\">Adjuntamos el archivo del turno para agregarlo al calendario de tu celular.</p>";
+        var attachmentNote = links.Count > 0
+            ? "<p style=\"margin:16px 0 0;font-size:13px;color:#555555;\">Si usás Google Calendar (Android o computadora), tocá \"Google Calendar\"; en iPhone, \"Agregar al calendario\".</p>"
+            : string.Empty;
 
         var htmlBody = $"""
             <!DOCTYPE html>

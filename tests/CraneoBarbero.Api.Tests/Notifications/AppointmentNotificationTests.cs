@@ -38,7 +38,8 @@ public sealed class AppointmentNotificationTests(PaymentApiFactory factory) : IC
         Assert.DoesNotContain("1500", mail.TextBody);
         Assert.Contains("https://calendar.google.com/calendar/render?action=TEMPLATE", mail.TextBody);
 
-        var ics = Ics(mail);
+        Assert.Null(mail.Attachments);
+        var ics = await IcsFromApiAsync(s, id);
         Assert.Contains("METHOD:PUBLISH", ics);
         Assert.Contains($"UID:{AppointmentCalendar.Uid(id)}", ics);
         Assert.Contains("DTSTART;TZID=America/Argentina/Buenos_Aires:20261124T100000", ics);
@@ -100,7 +101,8 @@ public sealed class AppointmentNotificationTests(PaymentApiFactory factory) : IC
         Assert.Equal("Turno cancelado - Cráneo Barbero", mail.Subject);
         Assert.Contains($"{s.ClientUser.Name}, cancelaste tu turno en Cráneo Barbero", mail.TextBody);
         Assert.Contains("Te devolvemos $1.500", mail.TextBody);
-        var ics = Ics(mail);
+        Assert.Null(mail.Attachments);
+        var ics = await IcsFromApiAsync(s, id);
         Assert.Contains("METHOD:CANCEL", ics);
         Assert.Contains("STATUS:CANCELLED", ics);
         Assert.Contains($"UID:{AppointmentCalendar.Uid(id)}", ics);
@@ -132,7 +134,7 @@ public sealed class AppointmentNotificationTests(PaymentApiFactory factory) : IC
         var mail = await factory.Emails.WaitForAsync(s.ClientUser.Email, 2);
         Assert.Equal("Tu turno cambió - Cráneo Barbero", mail.Subject);
         Assert.Contains("Nueva fecha y hora: martes 24 de noviembre de 2026, 17:00 h", mail.TextBody);
-        Assert.Contains("DTSTART;TZID=America/Argentina/Buenos_Aires:20261124T170000", Ics(mail));
+        Assert.Contains("DTSTART;TZID=America/Argentina/Buenos_Aires:20261124T170000", await IcsFromApiAsync(s, id));
     }
 
     [Fact]
@@ -191,7 +193,7 @@ public sealed class AppointmentNotificationTests(PaymentApiFactory factory) : IC
         var mail = await factory.Emails.WaitForAsync(s.ClientUser.Email);
         Assert.Equal("Recordatorio de tu turno - Cráneo Barbero", mail.Subject);
         Assert.Contains("Fecha y hora: miércoles 25 de noviembre de 2026, 10:00 h", mail.TextBody);
-        Assert.NotNull(mail.Attachments);
+        Assert.Contains("Google Calendar: https://calendar.google.com/calendar/render?action=TEMPLATE", mail.TextBody);
         var reminders = await factory.WithDbAsync(db => db.Notifications.AsNoTracking()
             .Where(n => n.Type == NotificationType.Reminder && (n.AppointmentId == confirmed || n.AppointmentId == cancelled)).ToListAsync());
         var reminder = Assert.Single(reminders);
@@ -272,6 +274,7 @@ public sealed class AppointmentNotificationTests(PaymentApiFactory factory) : IC
 
         var ok = await anonymous.GetAsync($"/calendar/{valid}.ics");
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+        Assert.Equal("inline", ok.Content.Headers.ContentDisposition?.DispositionType);
         Assert.Contains($"UID:{AppointmentCalendar.Uid(id)}", await ok.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.NotFound, (await anonymous.GetAsync($"/calendar/{expired}.ics")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await anonymous.GetAsync($"/calendar/{forged}.ics")).StatusCode);
@@ -369,11 +372,11 @@ public sealed class AppointmentNotificationTests(PaymentApiFactory factory) : IC
         return factory.CreateClient().SendAsync(request);
     }
 
-    private static string Ics(EmailMessage mail)
+    private static async Task<string> IcsFromApiAsync(Setup s, int id)
     {
-        var attachment = Assert.Single(mail.Attachments ?? []);
-        Assert.Equal(AppointmentCalendar.FileName, attachment.FileName);
-        return Unfold(Encoding.UTF8.GetString(attachment.Content));
+        var response = await s.Client.GetAsync($"/appointments/{id}/calendar.ics");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return Unfold(await response.Content.ReadAsStringAsync());
     }
 
     private static string Unfold(string ics) => ics.Replace($"{(char)13}{(char)10} ", string.Empty, StringComparison.Ordinal);
