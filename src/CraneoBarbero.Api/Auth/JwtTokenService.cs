@@ -36,6 +36,8 @@ public sealed class JwtTokenService(IOptions<JwtSettings> settings, TimeProvider
             Subject = new ClaimsIdentity(
             [
                 new Claim(AuthClaims.UserId, user.Id.ToString(CultureInfo.InvariantCulture)),
+                new Claim(AuthClaims.Id, user.Id.ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer32),
+                new Claim(AuthClaims.Name, user.Name),
                 new Claim(AuthClaims.Role, Roles.ToClaimValue(user.Role)),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
             ]),
