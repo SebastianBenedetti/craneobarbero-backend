@@ -230,3 +230,58 @@ public sealed class HolidaysController(
         new(holiday.Id, holiday.Date, holiday.Name, holiday.Type, holiday.Source, holiday.IsActive,
             await holidays.CountAppointmentsAsync(holiday.Date, cancellationToken));
 }
+
+[ApiController]
+[Route("schedule")]
+[Authorize(Policy = Policies.Admin)]
+public sealed class ScheduleController(ScheduleManagement schedule) : ControllerBase
+{
+    [HttpGet("overview")]
+    public Task<IReadOnlyList<ScheduleDay>> Overview(
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] int[]? branchIds,
+        [FromQuery] int[]? barberIds,
+        CancellationToken cancellationToken)
+    {
+        if (from is null || to is null)
+        {
+            throw new RequestValidationException(new Dictionary<string, string[]>
+            {
+                ["from"] = ["Indicá el rango de fechas (from y to, formato AAAA-MM-DD)."],
+            });
+        }
+
+        return schedule.OverviewAsync(from.Value, to.Value, branchIds, barberIds, cancellationToken);
+    }
+
+    [HttpGet("day")]
+    public Task<ScheduleDayDetail> Day([FromQuery] DateOnly? date, [FromQuery] int? barberId, CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (date is null) errors["date"] = ["Indicá el día (formato AAAA-MM-DD)."];
+        if (barberId is null or <= 0) errors["barberId"] = ["Elegí un barbero."];
+        if (errors.Count > 0)
+        {
+            throw new RequestValidationException(errors);
+        }
+
+        return schedule.DayAsync(date!.Value, barberId!.Value, cancellationToken);
+    }
+
+    [HttpPost("slots/remove/preview")]
+    public Task<RemoveSlotsPreview> PreviewRemove(SlotRangeRequest request, CancellationToken cancellationToken) =>
+        schedule.PreviewRemovalAsync(request, cancellationToken);
+
+    [HttpPost("slots/remove")]
+    public Task<RemoveSlotsResult> Remove(RemoveSlotsRequest request, CancellationToken cancellationToken) =>
+        schedule.RemoveAsync(request, User.GetRequiredUserId(), cancellationToken);
+
+    [HttpPost("slots/add/preview")]
+    public Task<AddSlotsPreview> PreviewAdd(SlotRangeRequest request, CancellationToken cancellationToken) =>
+        schedule.PreviewAdditionAsync(request, cancellationToken);
+
+    [HttpPost("slots/add")]
+    public Task<AddSlotsResult> Add(SlotRangeRequest request, CancellationToken cancellationToken) =>
+        schedule.AddAsync(request, User.GetRequiredUserId(), cancellationToken);
+}

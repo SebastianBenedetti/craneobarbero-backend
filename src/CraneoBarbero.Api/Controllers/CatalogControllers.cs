@@ -238,7 +238,8 @@ public sealed class BarbersController(
     AppDbContext db,
     IPasswordHasher hasher,
     FutureAppointments futureAppointments,
-    Schedule.SlotGenerator slotGenerator)
+    Schedule.SlotGenerator slotGenerator,
+    Schedule.ScheduleManagement schedule)
     : ControllerBase
 {
     private const string NotFoundMessage = "No se encontró el barbero.";
@@ -328,15 +329,21 @@ public sealed class BarbersController(
         var barber = await FindAsync(id, cancellationToken);
         var branchId = request.BranchId!.Value;
 
+        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
         if (branchId != barber.BranchId)
         {
             await EnsureActiveBranchAsync(branchId, cancellationToken);
             var count = await futureAppointments.CountForBarberAsync(id, cancellationToken);
-            if (count > 0)
+            if (count > 0 && request.Confirm != true)
             {
                 throw new ConflictException(
-                    $"El barbero tiene {FutureAppointments.Describe(count)}. Cancelalos o esperá a que pasen antes de cambiarlo de sucursal.",
+                    $"El barbero tiene {FutureAppointments.Describe(count)}. Si lo cambiás de sucursal se cancelan todos (con reembolso total de los pagados online). Revisá el resumen y confirmá el cambio.",
                     ErrorCodes.HasFutureAppointments);
+            }
+
+            if (count > 0)
+            {
+                await schedule.CancelForBranchChangeAsync(id, User.GetRequiredUserId(), cancellationToken);
             }
         }
 
@@ -351,7 +358,26 @@ public sealed class BarbersController(
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+
         return await LoadAdminAsync(id, cancellationToken);
+    }
+
+    [Authorize(Policy = Policies.Admin)]
+    [HttpGet("{id}/branch-change-preview")]
+    public async Task<Schedule.BranchChangePreview> BranchChangePreview(int id, [FromQuery] int? branchId, CancellationToken cancellationToken)
+    {
+        if (branchId is null or <= 0)
+        {
+            throw new RequestValidationException(new Dictionary<string, string[]> { ["branchId"] = ["Elegí la sucursal nueva."] });
+        }
+
+        await FindAsync(id, cancellationToken);
+        await EnsureActiveBranchAsync(branchId.Value, cancellationToken);
+        return await schedule.PreviewBranchChangeAsync(id, branchId.Value, cancellationToken);
     }
 
     [Authorize(Policy = Policies.Admin)]

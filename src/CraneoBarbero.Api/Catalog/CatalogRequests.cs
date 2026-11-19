@@ -20,7 +20,8 @@ public sealed record UpdateBarberRequest(
     int? BranchId,
     DateOnly? StartDate,
     string? ImageUrl,
-    string? NewPassword);
+    string? NewPassword,
+    bool? Confirm = null);
 
 public static class CatalogLimits
 {
