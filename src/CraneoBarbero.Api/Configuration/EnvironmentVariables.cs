@@ -9,4 +9,7 @@ public static class EnvironmentVariables
     public const string JwtSecret = "JWT_SECRET";
     public const string AdminEmail = "ADMIN_EMAIL";
     public const string AdminPassword = "ADMIN_PASSWORD";
+    public const string BrevoApiKey = "BREVO_API_KEY";
+    public const string EmailFrom = "EMAIL_FROM";
+    public const string EmailFromName = "EMAIL_FROM_NAME";
 }

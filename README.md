@@ -21,6 +21,10 @@ Las variables de entorno se cargan desde un archivo `.env` local (no se versiona
 | `DATABASE_ROOT_CERT` | Ruta a otro certificado raíz de la base (opcional). |
 | `JWT_SECRET` | Clave para firmar los tokens (mínimo 32 bytes). |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Admin inicial: se crea al arrancar solo si no hay ningún admin activo (contraseña de 12 caracteres o más). |
+| `BREVO_API_KEY` | Clave de la API de Brevo para enviar los mails (de tipo API, no SMTP). |
+| `EMAIL_FROM`, `EMAIL_FROM_NAME` | Remitente de los mails; la dirección tiene que estar verificada en Brevo. |
+
+Los mails (verificación de email, recuperación de contraseña y avisos) se envían por la API HTTP de Brevo, porque el plan gratuito de Render bloquea los puertos SMTP. Se mandan en segundo plano y cada envío queda registrado en la tabla `Notifications`. Sin `BREVO_API_KEY` la API funciona igual, pero no envía mails.
 
 La conexión a la base siempre verifica el certificado del servidor. Por defecto se usa el certificado raíz público de Supabase incluido en `src/CraneoBarbero.Api/certs`.
 
@@ -50,7 +54,7 @@ dotnet run --project src/CraneoBarbero.Api -- import-legacy <ruta del respaldo>
 La API corre en Render (plan gratuito) con Docker, a partir de `Dockerfile` y `render.yaml`:
 
 - Servicio web en la región Oregón, la misma que la base de Supabase.
-- `JWT_SECRET` lo genera Render; `DATABASE_URL` y `FRONTEND_URL` se cargan en el panel del servicio.
+- `JWT_SECRET` lo genera Render; `DATABASE_URL`, `FRONTEND_URL`, `BREVO_API_KEY`, `EMAIL_FROM` y `EMAIL_FROM_NAME` se cargan en el panel del servicio.
 - Render controla `/health`, que también consulta la base. Un monitor externo lo llama cada pocos minutos para que el servicio no se duerma.
 - El front en Vercel apunta a esta API con `VITE_API_URL`.
 

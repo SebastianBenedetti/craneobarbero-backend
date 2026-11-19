@@ -25,7 +25,7 @@ namespace CraneoBarbero.Api.Data.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "holiday_type", new[] { "custom", "national" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "notification_channel", new[] { "email" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "notification_status", new[] { "failed", "pending", "sent" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "notification_type", new[] { "cancellation", "confirmation", "reminder" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "notification_type", new[] { "cancellation", "confirmation", "email_verification", "modification", "password_reset", "payment", "reminder" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "order_status", new[] { "cancelled", "delivered", "expired", "paid", "pending_payment", "ready" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "payment_method", new[] { "card", "cash", "mercadopago", "transfer", "wallet" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "payment_status", new[] { "paid", "refunded", "unpaid" });
@@ -191,6 +191,7 @@ namespace CraneoBarbero.Api.Data.Migrations
                         .HasColumnName("type");
 
                     b.Property<DateTimeOffset?>("UsedAt")
+                        .IsConcurrencyToken()
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("usedAt");
 

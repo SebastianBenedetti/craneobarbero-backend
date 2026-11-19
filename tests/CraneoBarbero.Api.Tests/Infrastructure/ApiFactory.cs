@@ -3,6 +3,7 @@ using CraneoBarbero.Api.Auth;
 using CraneoBarbero.Api.Data;
 using CraneoBarbero.Api.Domain.Entities;
 using CraneoBarbero.Api.Domain.Enums;
+using CraneoBarbero.Api.Email;
 using FluentValidation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -30,6 +31,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         ["Security:MaxRequestBodyBytes"] = "2048",
         ["Security:GlobalRateLimit:PermitLimit"] = "10000",
         ["Security:AuthRateLimit:PermitLimit"] = "1000",
+        ["Email:RetryDelaySeconds"] = "0",
     };
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -48,6 +50,10 @@ public class ApiFactory : WebApplicationFactory<Program>
                 .UseInMemoryDatabase(_databaseName)
                 .ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
                 .AddInterceptors(provider.GetRequiredService<TimestampsInterceptor>()));
+
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<FakeEmailSender>();
+            services.AddSingleton<IEmailSender>(provider => provider.GetRequiredService<FakeEmailSender>());
 
             services.AddControllers().AddApplicationPart(typeof(ApiFactory).Assembly);
             services.AddScoped<IValidator<EchoRequest>, EchoRequestValidator>();
@@ -80,6 +86,14 @@ public class ApiFactory : WebApplicationFactory<Program>
         var user = await db.Users.SingleAsync(u => u.Id == id);
         change(user);
         await db.SaveChangesAsync();
+    }
+
+    public FakeEmailSender Emails => Services.GetRequiredService<FakeEmailSender>();
+
+    public async Task<T> WithDbAsync<T>(Func<AppDbContext, Task<T>> query)
+    {
+        using var scope = Services.CreateScope();
+        return await query(scope.ServiceProvider.GetRequiredService<AppDbContext>());
     }
 
     public string TokenFor(User user) => Services.GetRequiredService<IJwtTokenService>().CreateToken(user).Token;

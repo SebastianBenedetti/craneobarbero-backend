@@ -5,6 +5,10 @@ public enum NotificationType
     Confirmation,
     Reminder,
     Cancellation,
+    Modification,
+    Payment,
+    EmailVerification,
+    PasswordReset,
 }
 
 public enum NotificationChannel
