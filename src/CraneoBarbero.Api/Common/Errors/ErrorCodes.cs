@@ -25,6 +25,12 @@ public static class ErrorCodes
     public const string HasFutureAppointments = "has_future_appointments";
     public const string BranchInactive = "branch_inactive";
     public const string HolidayExists = "holiday_exists";
+    public const string SlotUnavailable = "slot_unavailable";
+    public const string ClientOverlap = "client_overlap";
+    public const string BarberUnavailable = "barber_unavailable";
+    public const string CutUnavailable = "cut_unavailable";
+    public const string ClientUnavailable = "client_unavailable";
+    public const string EmailNotVerified = "email_not_verified";
 }
 
 public static class ErrorMessages
