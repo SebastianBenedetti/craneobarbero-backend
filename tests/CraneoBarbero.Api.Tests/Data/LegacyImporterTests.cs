@@ -67,6 +67,7 @@ public sealed class LegacyImporterTests
         Assert.Equal([null, 2, null], users.Select(u => u.BranchId));
         Assert.Equal(new DateOnly(2020, 3, 1), users[1].StartDate);
         Assert.Equal("Barbero Ficticio", users[1].Name);
+        Assert.Equal([null, null, "3410000002"], users.Select(u => u.Phone));
         Assert.Equal(new DateTimeOffset(2026, 6, 18, 18, 32, 54, 413, TimeSpan.Zero), users[0].CreatedAt);
     }
 

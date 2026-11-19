@@ -52,7 +52,7 @@ public sealed class MeController(AppDbContext db, IPasswordHasher hasher) : Cont
         var user = await FindCurrentUserAsync(tracking: true, cancellationToken);
 
         user.Name = request.Name!.Trim();
-        user.Phone = AccountRules.TrimToNull(request.Phone);
+        user.Phone = user.Role == Domain.Enums.UserRole.Barber ? null : AccountRules.TrimToNull(request.Phone);
         user.ImageUrl = AccountRules.TrimToNull(request.ImageUrl);
         await db.SaveChangesAsync(cancellationToken);
 

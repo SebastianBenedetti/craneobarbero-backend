@@ -14,6 +14,7 @@ public static class UsersAndCatalogConfiguration
                 table.HasCheckConstraint("CK_Users_email_normalized", "\"email\" = lower(btrim(\"email\"))");
                 table.HasCheckConstraint("CK_Users_branch_by_role",
                     "(\"role\" = 'barber' AND \"branchId\" IS NOT NULL) OR (\"role\" <> 'barber' AND \"branchId\" IS NULL)");
+                table.HasCheckConstraint("CK_Users_barber_without_phone", "\"role\" <> 'barber' OR \"phone\" IS NULL");
             });
             entity.Property(u => u.Name).IsRequired().HasMaxLength(100);
             entity.Property(u => u.Email).IsRequired().HasMaxLength(254);
