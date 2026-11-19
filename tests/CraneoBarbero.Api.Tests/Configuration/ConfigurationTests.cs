@@ -108,6 +108,7 @@ public sealed class ConfigurationTests(ApiFactory factory) : IClassFixture<ApiFa
         Assert.Equal("usuario.proyecto", connection.Username);
         Assert.Equal("clave@con:simbolos", connection.Password);
         Assert.Equal(SslMode.VerifyFull, connection.SslMode);
+        Assert.Equal(GssEncryptionMode.Disable, connection.GssEncryptionMode);
         Assert.Equal("/certs/ca.crt", connection.RootCertificate);
     }
 

@@ -13,6 +13,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors.Infrastructure;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -167,6 +168,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddApplicationRateLimiting();
+        services.AddDataProtection().UseEphemeralDataProtectionProvider();
 
         return services;
     }

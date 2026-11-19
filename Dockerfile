@@ -12,6 +12,7 @@ WORKDIR /app
 
 ENV ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_RUNNING_IN_CONTAINER=true \
+    ASPNETCORE_HTTP_PORTS= \
     PORT=8080
 
 COPY --from=build /app .

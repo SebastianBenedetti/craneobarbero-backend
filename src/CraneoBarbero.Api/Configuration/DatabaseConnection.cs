@@ -14,6 +14,7 @@ public static class DatabaseConnection
         var builder = IsUri(databaseUrl) ? FromUri(databaseUrl) : new NpgsqlConnectionStringBuilder(databaseUrl);
 
         builder.SslMode = SslMode.VerifyFull;
+        builder.GssEncryptionMode = GssEncryptionMode.Disable;
         if (!string.IsNullOrWhiteSpace(rootCertificatePath))
         {
             builder.RootCertificate = rootCertificatePath;
