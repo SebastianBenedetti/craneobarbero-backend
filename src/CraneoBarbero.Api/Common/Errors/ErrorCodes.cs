@@ -35,6 +35,7 @@ public static class ErrorCodes
     public const string NotModifiable = "not_modifiable";
     public const string ModificationWindowClosed = "modification_window_closed";
     public const string ManualFieldsOnly = "manual_fields_only";
+    public const string PreviewOutdated = "preview_outdated";
 }
 
 public static class ErrorMessages

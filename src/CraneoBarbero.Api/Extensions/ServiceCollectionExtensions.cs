@@ -87,6 +87,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Schedule.SlotGenerator>();
         services.AddScoped<Schedule.AvailabilityService>();
         services.AddScoped<Schedule.HolidayService>();
+        services.AddScoped<Schedule.ScheduleManagement>();
         services.AddScoped<Appointments.AppointmentBooking>();
         services.AddScoped<Appointments.AppointmentChanges>();
         services.AddScoped<Appointments.IAppointmentRefunds, Appointments.RecordedAppointmentRefunds>();

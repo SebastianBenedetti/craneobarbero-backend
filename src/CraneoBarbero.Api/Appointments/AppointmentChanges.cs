@@ -173,6 +173,35 @@ public sealed class AppointmentChanges(
         return appointment;
     }
 
+    public async Task<bool> CancelForBusinessReasonAsync(Appointment appointment, Actor actor, string reason, CancellationToken cancellationToken)
+    {
+        var refunded = appointment.Status == AppointmentStatus.Pending &&
+                       appointment.PaymentStatus == PaymentStatus.Paid &&
+                       await refunds.RefundAsync(appointment, cancellationToken);
+
+        if (refunded)
+        {
+            appointment.PaymentStatus = PaymentStatus.Refunded;
+        }
+        else if (appointment.Status == AppointmentStatus.AwaitingPayment)
+        {
+            appointment.PaymentStatus = PaymentStatus.Unpaid;
+        }
+
+        appointment.Status = AppointmentStatus.Cancelled;
+        appointment.PaymentExpiresAt = null;
+        appointment.CancelledAt = clock.UtcNow;
+        appointment.CancelledById = actor.Id;
+        appointment.CancelledByRole = actor.Role;
+        appointment.CancellationReason = reason;
+        return refunded;
+    }
+
+    public Task<bool> IsRefundableAsync(Appointment appointment, CancellationToken cancellationToken) =>
+        appointment.Status == AppointmentStatus.Pending && appointment.PaymentStatus == PaymentStatus.Paid
+            ? HasApprovedOnlinePaymentAsync(appointment, cancellationToken)
+            : Task.FromResult(false);
+
     public async Task<Appointment> RescheduleAsync(
         Appointment appointment, Actor actor, RescheduleAppointmentRequest request, CancellationToken cancellationToken)
     {
