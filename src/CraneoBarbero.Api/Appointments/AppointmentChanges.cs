@@ -58,25 +58,8 @@ public sealed class RescheduleAppointmentRequestValidator : AbstractValidator<Re
 public interface IAppointmentRefunds
 {
     Task<bool> RefundAsync(Appointment appointment, CancellationToken cancellationToken);
-}
 
-public sealed class RecordedAppointmentRefunds(AppDbContext db, BusinessClock clock) : IAppointmentRefunds
-{
-    public async Task<bool> RefundAsync(Appointment appointment, CancellationToken cancellationToken)
-    {
-        var payment = await db.Payments
-            .Where(p => p.AppointmentId == appointment.Id && p.Status == TransactionStatus.Approved)
-            .OrderByDescending(p => p.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (payment is null)
-        {
-            return false;
-        }
-
-        payment.Status = TransactionStatus.Refunded;
-        payment.RefundedAt = clock.UtcNow;
-        return true;
-    }
+    Task ReleaseCheckoutAsync(Appointment appointment, CancellationToken cancellationToken);
 }
 
 public sealed class AppointmentChanges(
@@ -161,6 +144,11 @@ public sealed class AppointmentChanges(
             paymentStatus = PaymentStatus.Paid;
         }
 
+        if (appointment.Status == AppointmentStatus.AwaitingPayment)
+        {
+            await refunds.ReleaseCheckoutAsync(appointment, cancellationToken);
+        }
+
         appointment.Status = AppointmentStatus.Cancelled;
         appointment.PaymentStatus = paymentStatus;
         appointment.PaymentExpiresAt = null;
@@ -175,9 +163,22 @@ public sealed class AppointmentChanges(
 
     public async Task<bool> CancelForBusinessReasonAsync(Appointment appointment, Actor actor, string reason, CancellationToken cancellationToken)
     {
-        var refunded = appointment.Status == AppointmentStatus.Pending &&
-                       appointment.PaymentStatus == PaymentStatus.Paid &&
-                       await refunds.RefundAsync(appointment, cancellationToken);
+        var refunded = false;
+        if (appointment.Status == AppointmentStatus.Pending && appointment.PaymentStatus == PaymentStatus.Paid)
+        {
+            try
+            {
+                refunded = await refunds.RefundAsync(appointment, cancellationToken);
+            }
+            catch (AppException)
+            {
+                refunded = false;
+            }
+        }
+        else if (appointment.Status == AppointmentStatus.AwaitingPayment)
+        {
+            await refunds.ReleaseCheckoutAsync(appointment, cancellationToken);
+        }
 
         if (refunded)
         {

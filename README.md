@@ -23,6 +23,10 @@ Las variables de entorno se cargan desde un archivo `.env` local (no se versiona
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Admin inicial: se crea al arrancar solo si no hay ningún admin activo (contraseña de 12 caracteres o más). |
 | `BREVO_API_KEY` | Clave de la API de Brevo para enviar los mails (de tipo API, no SMTP). |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | Remitente de los mails; la dirección tiene que estar verificada en Brevo. |
+| `MP_ACCESS_TOKEN` | Access Token de Mercado Pago (de la cuenta vendedora de prueba). Sin esta variable las reservas funcionan pero no generan enlace de pago. |
+| `MP_PUBLIC_KEY` | Public Key de Mercado Pago (la usa el front si hiciera falta). |
+| `MP_WEBHOOK_SECRET` | Clave secreta de las notificaciones (webhooks) de Mercado Pago; sin ella se rechazan todas las notificaciones. |
+| `MP_NOTIFICATION_URL` | URL del webhook (opcional). En Render se arma sola con `RENDER_EXTERNAL_URL` + `/payments/webhook`. |
 
 Los mails (verificación de email, recuperación de contraseña y avisos) se envían por la API HTTP de Brevo, porque el plan gratuito de Render bloquea los puertos SMTP. Se mandan en segundo plano y cada envío queda registrado en la tabla `Notifications`. Sin `BREVO_API_KEY` la API funciona igual, pero no envía mails.
 
@@ -41,6 +45,15 @@ Las reglas del negocio (horario de atención, grilla de turnos, ventanas de canc
 - Los feriados nacionales se sincronizan desde la API pública de [ArgentinaDatos](https://argentinadatos.com/docs) (`https://api.argentinadatos.com/v1/feriados/{año}`, gratuita y sin cuenta), para el año en curso y el siguiente, al arrancar y cada 7 días. Se guardan los de tipo `inamovible` y `trasladable`; los `puente` (días no laborables con fines turísticos) no se cargan solos: los agrega el admin como día no laborable propio. Si la API no responde, se reintenta en la pasada siguiente y los feriados se pueden cargar a mano.
 - Un feriado nuevo cierra los horarios libres de ese día y deja los que ya tienen turnos, para que el admin decida qué hacer con ellos.
 - La configuración está en la sección `Schedule` de `appsettings.json` (URL de la API de feriados, intervalo de sincronización, hora de generación y días que se conservan los horarios pasados). `Schedule:JobsEnabled` apaga estos procesos; en desarrollo están apagados.
+
+## Pagos
+
+Los turnos online se pagan con Checkout Pro de Mercado Pago, siempre en **modo de prueba** (cuentas y tarjetas de prueba).
+
+- Al reservar se crea una preferencia de pago que vence a los 30 minutos, igual que la reserva del horario. `POST /appointments/:id/pay` genera un enlace nuevo (anula el anterior).
+- El turno se confirma solo cuando el servidor verifica el pago con la API de Mercado Pago: por la notificación `POST /payments/webhook` (con la firma `x-signature` validada con `MP_WEBHOOK_SECRET`) o cuando el cliente vuelve del checkout (`GET /payments/return`). Las dos vías son idempotentes.
+- Si llega un pago aprobado para un turno que ya venció o se canceló, se reembolsa automáticamente.
+- Las cancelaciones con reembolso lo piden a Mercado Pago (con clave de idempotencia); si Mercado Pago falla, la cancelación no se aplica y se informa el error.
 
 ## Base de datos
 
