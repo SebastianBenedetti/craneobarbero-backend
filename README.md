@@ -55,6 +55,7 @@ La API corre en Render (plan gratuito) con Docker, a partir de `Dockerfile` y `r
 
 - Servicio web en la región Oregón, la misma que la base de Supabase.
 - `JWT_SECRET` lo genera Render; `DATABASE_URL`, `FRONTEND_URL`, `BREVO_API_KEY`, `EMAIL_FROM` y `EMAIL_FROM_NAME` se cargan en el panel del servicio.
+- GitHub Actions compila y corre los tests en cada push a `main` o `seba-branch` y en cada pull request (`.github/workflows/ci.yml`). Render solo despliega un commit de `main` cuando esos chequeos pasan (`autoDeployTrigger: checksPass`).
 - Render controla `/health`, que también consulta la base. Un monitor externo lo llama cada pocos minutos para que el servicio no se duerma.
 - El front en Vercel apunta a esta API con `VITE_API_URL`.
 

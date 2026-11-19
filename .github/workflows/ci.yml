@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main, seba-branch]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Compilar y testear
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restaurar
+        run: dotnet restore CraneoBarbero.slnx
+
+      - name: Compilar
+        run: dotnet build CraneoBarbero.slnx --no-restore -c Release
+
+      - name: Tests
+        run: dotnet test CraneoBarbero.slnx --no-build -c Release
