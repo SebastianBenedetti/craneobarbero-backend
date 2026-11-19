@@ -90,7 +90,28 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Schedule.ScheduleManagement>();
         services.AddScoped<Appointments.AppointmentBooking>();
         services.AddScoped<Appointments.AppointmentChanges>();
-        services.AddScoped<Appointments.IAppointmentRefunds, Appointments.RecordedAppointmentRefunds>();
+        services.AddScoped<Payments.AppointmentPayments>();
+        services.AddScoped<Appointments.IAppointmentRefunds>(provider => provider.GetRequiredService<Payments.AppointmentPayments>());
+        services.AddOptions<Payments.MercadoPagoSettings>()
+            .BindConfiguration(Payments.MercadoPagoSettings.SectionName)
+            .Configure<IConfiguration>((settings, configuration) =>
+            {
+                settings.AccessToken = configuration[EnvironmentVariables.MercadoPagoAccessToken]?.Trim() ?? string.Empty;
+                settings.WebhookSecret = configuration[EnvironmentVariables.MercadoPagoWebhookSecret]?.Trim() ?? string.Empty;
+                var notification = configuration[EnvironmentVariables.MercadoPagoNotificationUrl];
+                var external = configuration[EnvironmentVariables.RenderExternalUrl];
+                settings.NotificationUrl = !string.IsNullOrWhiteSpace(notification)
+                    ? notification.Trim()
+                    : !string.IsNullOrWhiteSpace(external) ? external.Trim().TrimEnd('/') + "/payments/webhook" : string.Empty;
+                var frontend = CorsSettings.ParseOrigins(configuration[EnvironmentVariables.FrontendUrl]).FirstOrDefault();
+                settings.ReturnUrl = frontend is null ? string.Empty : frontend.TrimEnd('/') + "/payments/return";
+            });
+        services.AddHttpClient<Payments.IPaymentGateway, Payments.MercadoPagoClient>((provider, client) =>
+        {
+            var settings = provider.GetRequiredService<IOptions<Payments.MercadoPagoSettings>>().Value;
+            client.BaseAddress = new Uri(settings.ApiUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
+        });
         services.AddScoped<Appointments.AppointmentLifecycle>();
         services.AddHostedService<Appointments.AppointmentJobsService>();
         services.AddOptions<Schedule.ScheduleSettings>().BindConfiguration(Schedule.ScheduleSettings.SectionName).ValidateOnStart();

@@ -17,6 +17,7 @@ public sealed class AppointmentsController(
     AppDbContext db,
     AppointmentBooking booking,
     AppointmentChanges changes,
+    Payments.AppointmentPayments payments,
     OpeningSchedule opening,
     IAuthorizationService authorization) : ControllerBase
 {
@@ -45,7 +46,8 @@ public sealed class AppointmentsController(
             PaymentMethod.MercadoPago,
             Online: true), cancellationToken);
 
-        var response = new CreatedAppointmentResponse(await LoadAsync(appointment.Id, cancellationToken), CheckoutUrl: null);
+        var checkoutUrl = await payments.TryStartCheckoutAsync(appointment, cancellationToken);
+        var response = new CreatedAppointmentResponse(await LoadAsync(appointment.Id, cancellationToken), checkoutUrl);
         return CreatedAtAction(nameof(Get), new { id = appointment.Id }, response);
     }
 
@@ -156,6 +158,16 @@ public sealed class AppointmentsController(
         var actor = CurrentActor();
         var appointment = await changes.FindForAsync(id, actor, cancellationToken);
         return await changes.PreviewCancellationAsync(appointment, actor, cancellationToken);
+    }
+
+    [Authorize(Policy = Policies.Client)]
+    [HttpPost("{id}/pay")]
+    public async Task<Payments.CheckoutResponse> Pay(int id, CancellationToken cancellationToken)
+    {
+        var actor = CurrentActor();
+        var appointment = await changes.FindForAsync(id, actor, cancellationToken);
+        var url = await payments.StartCheckoutAsync(appointment, cancellationToken);
+        return new Payments.CheckoutResponse(appointment.Id, url, appointment.PaymentExpiresAt);
     }
 
     [HttpPost("{id}/cancel")]

@@ -12,4 +12,8 @@ public static class EnvironmentVariables
     public const string BrevoApiKey = "BREVO_API_KEY";
     public const string EmailFrom = "EMAIL_FROM";
     public const string EmailFromName = "EMAIL_FROM_NAME";
+    public const string MercadoPagoAccessToken = "MP_ACCESS_TOKEN";
+    public const string MercadoPagoWebhookSecret = "MP_WEBHOOK_SECRET";
+    public const string MercadoPagoNotificationUrl = "MP_NOTIFICATION_URL";
+    public const string RenderExternalUrl = "RENDER_EXTERNAL_URL";
 }
