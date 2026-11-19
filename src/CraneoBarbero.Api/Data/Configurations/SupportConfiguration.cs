@@ -32,6 +32,7 @@ public static class SupportConfiguration
         {
             entity.ToTable("AuthTokens");
             entity.Property(t => t.TokenHash).IsRequired().HasMaxLength(128);
+            entity.Property(t => t.UsedAt).IsConcurrencyToken();
             entity.HasIndex(t => t.TokenHash).IsUnique();
             entity.HasIndex(t => new { t.UserId, t.Type });
             entity.HasOne<User>().WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);

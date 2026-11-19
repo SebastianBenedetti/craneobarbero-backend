@@ -41,6 +41,7 @@ builder.Services.AddSerilog((services, logger) =>
 builder.Services
     .AddApplicationSettings()
     .AddApplicationData()
+    .AddApplicationEmail()
     .AddApplicationControllers()
     .AddApplicationAuthentication()
     .AddApplicationSecurity()

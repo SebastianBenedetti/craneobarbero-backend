@@ -2,6 +2,7 @@ using CraneoBarbero.Api.Auth;
 using CraneoBarbero.Api.Common.Errors;
 using CraneoBarbero.Api.Configuration;
 using CraneoBarbero.Api.Security;
+using Microsoft.Extensions.Options;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -62,6 +63,12 @@ public static class WebApplicationExtensions
         {
             app.Logger.LogWarning("{Variable} no tiene un origen válido: el navegador no podrá llamar a la API.",
                 EnvironmentVariables.FrontendUrl);
+        }
+
+        if (!app.Services.GetRequiredService<IOptions<EmailSettings>>().Value.IsConfigured)
+        {
+            app.Logger.LogWarning("Faltan {ApiKey} o {From}: los mails no se van a enviar.",
+                EnvironmentVariables.BrevoApiKey, EnvironmentVariables.EmailFrom);
         }
 
         return app;

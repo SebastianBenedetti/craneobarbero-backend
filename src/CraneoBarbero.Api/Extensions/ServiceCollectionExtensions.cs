@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CraneoBarbero.Api.Accounts;
 using CraneoBarbero.Api.Auth;
 using CraneoBarbero.Api.Common.Errors;
 using CraneoBarbero.Api.Common.Validation;
@@ -8,6 +9,7 @@ using CraneoBarbero.Api.Configuration;
 using CraneoBarbero.Api.Data;
 using CraneoBarbero.Api.Data.Import;
 using CraneoBarbero.Api.Data.Seeding;
+using CraneoBarbero.Api.Email;
 using CraneoBarbero.Api.Security;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -80,6 +82,50 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AdminSeeder>();
         services.AddHostedService<AdminSeedHostedService>();
         services.AddScoped<LegacyImporter>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddApplicationEmail(this IServiceCollection services)
+    {
+        services.AddOptions<EmailSettings>()
+            .BindConfiguration(EmailSettings.SectionName)
+            .Configure<IConfiguration>((settings, configuration) =>
+            {
+                var apiKey = configuration[EnvironmentVariables.BrevoApiKey];
+                if (!string.IsNullOrWhiteSpace(apiKey))
+                {
+                    settings.BrevoApiKey = apiKey.Trim();
+                }
+
+                var from = configuration[EnvironmentVariables.EmailFrom];
+                if (!string.IsNullOrWhiteSpace(from))
+                {
+                    settings.FromEmail = from.Trim();
+                }
+
+                var fromName = configuration[EnvironmentVariables.EmailFromName];
+                if (!string.IsNullOrWhiteSpace(fromName))
+                {
+                    settings.FromName = fromName.Trim();
+                }
+
+                settings.FrontendBaseUrl =
+                    CorsSettings.ParseOrigins(configuration[EnvironmentVariables.FrontendUrl]).FirstOrDefault() ?? string.Empty;
+            });
+
+        services.AddHttpClient<IEmailSender, BrevoEmailSender>((provider, client) =>
+        {
+            var settings = provider.GetRequiredService<IOptions<EmailSettings>>().Value;
+            client.BaseAddress = new Uri(settings.BrevoApiUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
+        });
+
+        services.AddSingleton<EmailQueue>();
+        services.AddSingleton<IEmailQueue>(provider => provider.GetRequiredService<EmailQueue>());
+        services.AddHostedService<EmailDispatcher>();
+        services.AddScoped<AccountEmailService>();
+        services.AddScoped<AuthTokenService>();
 
         return services;
     }

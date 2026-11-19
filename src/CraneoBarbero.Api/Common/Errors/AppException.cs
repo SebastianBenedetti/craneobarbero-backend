@@ -22,6 +22,9 @@ public sealed class NotFoundException(string message = ErrorMessages.NotFound, s
 public sealed class ConflictException(string message, string code = ErrorCodes.Conflict)
     : AppException(StatusCodes.Status409Conflict, code, message);
 
+public sealed class TooManyRequestsException(string message = ErrorMessages.TooManyRequests, string code = ErrorCodes.TooManyRequests)
+    : AppException(StatusCodes.Status429TooManyRequests, code, message);
+
 public sealed class RequestValidationException(IReadOnlyDictionary<string, string[]> errors)
     : AppException(StatusCodes.Status400BadRequest, ErrorCodes.ValidationError, ErrorMessages.ValidationError)
 {

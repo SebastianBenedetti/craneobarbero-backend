@@ -18,6 +18,8 @@ public sealed record UserResponse(
         user.Id, user.Name, user.Email, user.Phone, user.ImageUrl, user.Role, user.BranchId, user.StartDate, user.EmailVerified);
 }
 
+public sealed record MessageResponse(string Message);
+
 public sealed record LoginResponse(string Token, DateTimeOffset ExpiresAt, UserResponse User);
 
 public sealed record BranchResponse(int Id, string Name, string Address, string? Phone, string? ImageUrl);
