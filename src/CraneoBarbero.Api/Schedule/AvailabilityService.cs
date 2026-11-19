@@ -14,6 +14,8 @@ public sealed record AvailabilityQuery(
     int? ClientId = null,
     int? IgnoreAppointmentId = null);
 
+public sealed record AvailabilityDayCount(DateOnly Date, int Available, bool HasOpenSlots);
+
 public sealed class AvailabilityService(
     AppDbContext db,
     OpeningSchedule opening,
@@ -23,34 +25,58 @@ public sealed class AvailabilityService(
     public async Task<IReadOnlyList<DateTimeOffset>> GetAvailableStartsAsync(
         AvailabilityQuery query, CancellationToken cancellationToken = default)
     {
-        var now = clock.UtcNow;
-        var (dayStart, dayEnd) = opening.DayRange(query.Date);
-        var windowEnd = query.ApplyBookingWindow ? now.AddDays(business.Value.BookingWindowDays) : DateTimeOffset.MaxValue;
-        if (dayEnd <= now || dayStart > windowEnd || query.DurationMinutes <= 0)
+        var (starts, _) = await ComputeAsync(query, query.Date, query.Date, cancellationToken);
+        return starts;
+    }
+
+    public async Task<IReadOnlyList<AvailabilityDayCount>> CountByDayAsync(
+        AvailabilityQuery query, DateOnly from, DateOnly to, CancellationToken cancellationToken = default)
+    {
+        var (starts, open) = await ComputeAsync(query, from, to, cancellationToken);
+        var available = starts.GroupBy(opening.DateOf).ToDictionary(g => g.Key, g => g.Count());
+        var withOpenSlots = open.Select(ticks => opening.DateOf(new DateTimeOffset(ticks, TimeSpan.Zero))).ToHashSet();
+
+        var result = new List<AvailabilityDayCount>();
+        for (var date = from; date <= to; date = date.AddDays(1))
         {
-            return [];
+            result.Add(new AvailabilityDayCount(date, available.GetValueOrDefault(date), withOpenSlots.Contains(date)));
+        }
+
+        return result;
+    }
+
+    private async Task<(List<DateTimeOffset> Starts, HashSet<long> Open)> ComputeAsync(
+        AvailabilityQuery query, DateOnly from, DateOnly to, CancellationToken cancellationToken)
+    {
+        var now = clock.UtcNow;
+        var rangeStart = opening.DayRange(from).Start;
+        var rangeEnd = opening.DayRange(to).End;
+        var windowEnd = query.ApplyBookingWindow ? now.AddDays(business.Value.BookingWindowDays) : DateTimeOffset.MaxValue;
+        if (to < from || rangeEnd <= now || rangeStart > windowEnd || query.DurationMinutes <= 0)
+        {
+            return ([], []);
         }
 
         var blocks = opening.BlocksFor(query.DurationMinutes);
         var slotLength = opening.SlotLength;
         var duration = TimeSpan.FromMinutes(query.DurationMinutes);
-        var searchEnd = dayEnd + slotLength * blocks;
+        var searchEnd = rangeEnd + slotLength * blocks;
 
         var open = (await db.AvailableSlots.AsNoTracking()
-                .Where(s => s.BarberId == query.BarberId && s.DeletedAt == null && s.StartAt >= dayStart && s.StartAt < searchEnd)
+                .Where(s => s.BarberId == query.BarberId && s.DeletedAt == null && s.StartAt >= rangeStart && s.StartAt < searchEnd)
                 .Select(s => s.StartAt)
                 .ToListAsync(cancellationToken))
             .Select(start => start.UtcTicks)
             .ToHashSet();
         if (open.Count == 0)
         {
-            return [];
+            return ([], open);
         }
 
-        var busy = await BusyRangesAsync(query, dayStart, searchEnd, cancellationToken);
+        var busy = await BusyRangesAsync(query, rangeStart, searchEnd, cancellationToken);
 
         var result = new List<DateTimeOffset>();
-        foreach (var ticks in open.Where(t => t >= dayStart.UtcTicks && t < dayEnd.UtcTicks).Order())
+        foreach (var ticks in open.Where(t => t >= rangeStart.UtcTicks && t < rangeEnd.UtcTicks).Order())
         {
             var start = new DateTimeOffset(ticks, TimeSpan.Zero);
             if (start <= now || start > windowEnd || !IsOnGrid(start))
@@ -73,7 +99,8 @@ public sealed class AvailabilityService(
             result.Add(start);
         }
 
-        return result;
+        open.RemoveWhere(t => t < rangeStart.UtcTicks || t >= rangeEnd.UtcTicks || t <= now.UtcTicks);
+        return (result, open);
     }
 
     public async Task<bool> IsAvailableAsync(AvailabilityQuery query, DateTimeOffset start, CancellationToken cancellationToken = default)

@@ -65,11 +65,34 @@ internal static class HolidayRules
             .WithMessage("El nombre debe tener entre 3 y 150 caracteres.");
 }
 
+public enum AvailabilityDayStatus
+{
+    Available,
+    Full,
+    Closed,
+    Holiday,
+}
+
+public sealed record AvailabilityDay(DateOnly Date, int Available, AvailabilityDayStatus Status, string? HolidayName);
+
+public sealed record AvailabilityDaysResponse(
+    int BarberId,
+    int CutId,
+    int DurationMinutes,
+    DateOnly? LastBookableDate,
+    IReadOnlyList<AvailabilityDay> Days);
+
 [ApiController]
 [Route("appointments")]
-public sealed class AvailabilityController(AppDbContext db, AvailabilityService availability, OpeningSchedule opening)
-    : ControllerBase
+public sealed class AvailabilityController(
+    AppDbContext db,
+    AvailabilityService availability,
+    OpeningSchedule opening,
+    BusinessClock clock,
+    Microsoft.Extensions.Options.IOptions<BusinessSettings> business) : ControllerBase
 {
+    private const int MaxDaysRange = 62;
+
     [AllowAnonymous]
     [HttpGet("availability")]
     public async Task<AvailabilityResponse> Get(
@@ -87,16 +110,7 @@ public sealed class AvailabilityController(AppDbContext db, AvailabilityService 
             throw new RequestValidationException(errors);
         }
 
-        var barberAvailable = await db.Users.AsNoTracking().AnyAsync(u =>
-            u.Id == barberId && u.Role == UserRole.Barber && u.IsActive && u.Branch != null && u.Branch.IsActive, cancellationToken);
-        if (!barberAvailable)
-        {
-            throw new NotFoundException("No se encontró el barbero.");
-        }
-
-        var cut = await db.Cuts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == cutId && c.IsActive, cancellationToken)
-                  ?? throw new NotFoundException("No se encontró el servicio.");
-
+        var cut = await LoadBookableAsync(barberId!.Value, cutId!.Value, cancellationToken);
         var isStaff = User.IsInRole(Roles.Admin) || User.IsInRole(Roles.Barber);
         int? clientId = User.IsInRole(Roles.Client) ? User.GetUserId() : null;
 
@@ -110,6 +124,72 @@ public sealed class AvailabilityController(AppDbContext db, AvailabilityService 
             date.Value,
             cut.DurationMinutes,
             starts.Select(start => new AvailabilityTime(start, opening.TimeOf(start).ToString("HH:mm"))).ToList());
+    }
+
+    [AllowAnonymous]
+    [HttpGet("availability/days")]
+    public async Task<AvailabilityDaysResponse> Days(
+        [FromQuery] int? barberId,
+        [FromQuery] int? cutId,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (barberId is null or <= 0) errors["barberId"] = ["Elegí un barbero."];
+        if (cutId is null or <= 0) errors["cutId"] = ["Elegí un servicio."];
+        if (from is null || to is null) errors["from"] = ["Indicá el rango de fechas (from y to, formato AAAA-MM-DD)."];
+        else if (to < from) errors["to"] = ["La fecha final no puede ser anterior a la inicial."];
+        else if (to.Value.DayNumber - from.Value.DayNumber + 1 > MaxDaysRange) errors["to"] = [$"El rango no puede superar los {MaxDaysRange} días."];
+        if (errors.Count > 0)
+        {
+            throw new RequestValidationException(errors);
+        }
+
+        var cut = await LoadBookableAsync(barberId!.Value, cutId!.Value, cancellationToken);
+        var isStaff = User.IsInRole(Roles.Admin) || User.IsInRole(Roles.Barber);
+        int? clientId = User.IsInRole(Roles.Client) ? User.GetUserId() : null;
+
+        var today = clock.Today;
+        DateOnly? lastBookableDate = isStaff ? null : opening.DateOf(clock.UtcNow.AddDays(business.Value.BookingWindowDays));
+        var first = from!.Value < today ? today : from.Value;
+        var last = lastBookableDate is { } limit && to!.Value > limit ? limit : to!.Value;
+
+        var days = new List<AvailabilityDay>();
+        if (first <= last)
+        {
+            var holidays = await db.Holidays.AsNoTracking()
+                .Where(h => h.IsActive && h.Date >= first && h.Date <= last)
+                .ToDictionaryAsync(h => h.Date, h => h.Name, cancellationToken);
+            var counts = await availability.CountByDayAsync(
+                new AvailabilityQuery(barberId.Value, cut.DurationMinutes, first, ApplyBookingWindow: !isStaff, ClientId: clientId),
+                first, last, cancellationToken);
+
+            foreach (var day in counts)
+            {
+                var holidayName = holidays.GetValueOrDefault(day.Date);
+                var status = day.Available > 0 ? AvailabilityDayStatus.Available
+                    : holidayName is not null && !day.HasOpenSlots ? AvailabilityDayStatus.Holiday
+                    : day.HasOpenSlots ? AvailabilityDayStatus.Full
+                    : AvailabilityDayStatus.Closed;
+                days.Add(new AvailabilityDay(day.Date, day.Available, status, holidayName));
+            }
+        }
+
+        return new AvailabilityDaysResponse(barberId.Value, cut.Id, cut.DurationMinutes, lastBookableDate, days);
+    }
+
+    private async Task<Cut> LoadBookableAsync(int barberId, int cutId, CancellationToken cancellationToken)
+    {
+        var barberAvailable = await db.Users.AsNoTracking().AnyAsync(u =>
+            u.Id == barberId && u.Role == UserRole.Barber && u.IsActive && u.Branch != null && u.Branch.IsActive, cancellationToken);
+        if (!barberAvailable)
+        {
+            throw new NotFoundException("No se encontró el barbero.");
+        }
+
+        return await db.Cuts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == cutId && c.IsActive, cancellationToken)
+               ?? throw new NotFoundException("No se encontró el servicio.");
     }
 }
 
