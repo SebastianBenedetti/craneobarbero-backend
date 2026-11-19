@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+**/bin/
+**/obj/
+**/TestResults/
+.git/
+.vs/
+.vscode/
+.idea/
+tests/
+*.backup
+*.backup.gz
+*.dump
+*.sqlite
+datos-exportados/
