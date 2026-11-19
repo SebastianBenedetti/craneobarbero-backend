@@ -20,10 +20,30 @@ Las variables de entorno se cargan desde un archivo `.env` local (no se versiona
 | `DATABASE_URL` | Cadena de conexión de PostgreSQL (formato URI o clave=valor). |
 | `DATABASE_ROOT_CERT` | Ruta a otro certificado raíz de la base (opcional). |
 | `JWT_SECRET` | Clave para firmar los tokens (mínimo 32 bytes). |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Admin inicial: se crea al arrancar solo si no hay ningún admin activo (contraseña de 12 caracteres o más). |
 
 La conexión a la base siempre verifica el certificado del servidor. Por defecto se usa el certificado raíz público de Supabase incluido en `src/CraneoBarbero.Api/certs`.
 
 Las reglas del negocio (horario de atención, grilla de turnos, ventanas de cancelación y de reserva, vencimiento del pago, zona horaria y medios de pago) están en la sección `Business` de `appsettings.json`.
+
+## Base de datos
+
+El esquema se crea y se actualiza solo con migraciones de EF Core; la API nunca modifica tablas al arrancar.
+
+```
+dotnet tool restore
+dotnet ef database update --project src/CraneoBarbero.Api
+```
+
+Para crear una migración nueva: `dotnet ef migrations add <Nombre> --project src/CraneoBarbero.Api --output-dir Data/Migrations`.
+
+### Importar datos del sistema anterior
+
+Sobre una base vacía (con las migraciones aplicadas) se pueden importar sucursales, servicios, usuarios y turnos desde un respaldo de PostgreSQL en texto plano (`.sql` o `.sql.gz`). El respaldo contiene datos personales: nunca se guarda dentro del repositorio.
+
+```
+dotnet run --project src/CraneoBarbero.Api -- import-legacy <ruta del respaldo>
+```
 
 ## Ejecutar
 
