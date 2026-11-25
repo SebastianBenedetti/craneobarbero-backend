@@ -192,6 +192,7 @@ public static class ServiceCollectionExtensions
             {
                 options.Filters.Add<RouteIdValidationFilter>();
                 options.Filters.Add<ValidationFilter>();
+                options.ModelBinderProviders.Insert(0, new Common.Validation.SnakeCaseEnumModelBinderProvider());
                 options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
 
                 var messages = options.ModelBindingMessageProvider;
