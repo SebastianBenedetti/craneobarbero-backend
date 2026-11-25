@@ -5,6 +5,7 @@ using CraneoBarbero.Api.Configuration;
 using CraneoBarbero.Api.Data;
 using CraneoBarbero.Api.Domain.Entities;
 using CraneoBarbero.Api.Domain.Enums;
+using CraneoBarbero.Api.Store;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
@@ -15,13 +16,16 @@ public sealed class PaymentProviderException(string message)
 
 public sealed record CheckoutResponse(int AppointmentId, string CheckoutUrl, DateTimeOffset? PaymentExpiresAt);
 
-public sealed record PaymentReturnResponse(string? GatewayStatus, AppointmentResponse Appointment);
+public sealed record PaymentReturnResponse(string? GatewayStatus, AppointmentResponse? Appointment, OrderResponse? Order = null);
+
+public sealed record PaymentTarget(int? AppointmentId, int? OrderId);
 
 public sealed class AppointmentPayments(
     AppDbContext db,
     IPaymentGateway gateway,
     BusinessClock clock,
     IServiceProvider services,
+    OrderPayments orders,
     ILogger<AppointmentPayments> logger) : IAppointmentRefunds
 {
     public const string ReferencePrefix = "appointment:";
@@ -101,7 +105,7 @@ public sealed class AppointmentPayments(
         return preference.CheckoutUrl;
     }
 
-    public async Task<int?> ProcessGatewayPaymentAsync(string paymentId, CancellationToken cancellationToken)
+    public async Task<PaymentTarget?> ProcessGatewayPaymentAsync(string paymentId, CancellationToken cancellationToken)
     {
         GatewayPayment? remote;
         try
@@ -112,6 +116,12 @@ public sealed class AppointmentPayments(
         {
             logger.LogError(exception, "No se pudo consultar el pago {PaymentId} en Mercado Pago", paymentId);
             throw new PaymentProviderException(ProviderErrorMessage);
+        }
+
+        if (remote is not null && OrderPayments.TryParseReference(remote.ExternalReference, out _))
+        {
+            var orderId = await orders.ProcessAsync(remote, cancellationToken);
+            return orderId is null ? null : new PaymentTarget(null, orderId);
         }
 
         if (remote is null || !TryParseReference(remote.ExternalReference, out var appointmentId))
@@ -168,7 +178,7 @@ public sealed class AppointmentPayments(
         {
             db.ChangeTracker.Clear();
             logger.LogInformation("El pago {PaymentId} ya había sido procesado", paymentId);
-            return appointmentId;
+            return new PaymentTarget(appointmentId, null);
         }
 
         if (confirmed)
@@ -176,7 +186,7 @@ public sealed class AppointmentPayments(
             await services.GetRequiredService<AppointmentNotifications>().SendConfirmationAsync(appointmentId, cancellationToken);
         }
 
-        return appointmentId;
+        return new PaymentTarget(appointmentId, null);
     }
 
     public async Task<bool> RefundAsync(Appointment appointment, CancellationToken cancellationToken)

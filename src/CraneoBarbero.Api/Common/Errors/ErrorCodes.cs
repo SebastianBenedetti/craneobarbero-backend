@@ -50,6 +50,8 @@ public static class ErrorCodes
     public const string SkuInUse = "sku_in_use";
     public const string ProductUnavailable = "product_unavailable";
     public const string InsufficientStock = "insufficient_stock";
+    public const string InvalidStatusTransition = "invalid_status_transition";
+    public const string NotRefundable = "not_refundable";
 }
 
 public static class ErrorMessages

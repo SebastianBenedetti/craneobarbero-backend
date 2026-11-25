@@ -84,6 +84,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<LegacyImporter>();
         services.AddScoped<Catalog.FutureAppointments>();
         services.AddScoped<Store.StockLedger>();
+        services.AddScoped<Store.OrderTransitions>();
+        services.AddScoped<Store.OrderManagement>();
+        services.AddScoped<Payments.OrderPayments>();
         services.AddScoped<Schedule.OpeningSchedule>();
         services.AddScoped<Schedule.SlotGenerator>();
         services.AddScoped<Schedule.AvailabilityService>();

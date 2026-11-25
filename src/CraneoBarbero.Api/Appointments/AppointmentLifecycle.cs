@@ -100,6 +100,12 @@ public sealed class AppointmentJobsService(
                         "Turnos actualizados: {Expired} vencidos sin pago, {Completed} completados ({Paid} manuales pasados a abonados)",
                         result.Expired, result.Completed, result.CompletedAndPaid);
                 }
+
+                var expiredOrders = await scope.ServiceProvider.GetRequiredService<Store.OrderTransitions>().ExpireUnpaidAsync(stoppingToken);
+                if (expiredOrders > 0)
+                {
+                    logger.LogInformation("Pedidos vencidos sin pago: {Expired}", expiredOrders);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
