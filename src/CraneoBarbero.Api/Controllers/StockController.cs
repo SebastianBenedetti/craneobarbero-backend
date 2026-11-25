@@ -1,7 +1,10 @@
+using CraneoBarbero.Api.Accounts;
 using CraneoBarbero.Api.Appointments;
 using CraneoBarbero.Api.Auth;
+using CraneoBarbero.Api.Common.Errors;
 using CraneoBarbero.Api.Configuration;
 using CraneoBarbero.Api.Data;
+using CraneoBarbero.Api.Domain.Entities;
 using CraneoBarbero.Api.Domain.Enums;
 using CraneoBarbero.Api.Store;
 using Microsoft.AspNetCore.Authorization;
@@ -34,6 +37,80 @@ public sealed class StockController(AppDbContext db, StockLedger ledger, Busines
 
         var movement = await Project(db.StockMovements.Where(m => m.Id == result.Movement.Id)).SingleAsync(cancellationToken);
         return StatusCode(StatusCodes.Status201Created, movement);
+    }
+
+    [HttpPost("purchases")]
+    public async Task<ActionResult<PurchaseResponse>> Purchase(PurchaseRequest request, CancellationToken cancellationToken)
+    {
+        StockMovementPersonRef? supplier = null;
+        if (request.SupplierId is { } supplierId)
+        {
+            supplier = await db.Suppliers.AsNoTracking()
+                .Where(s => s.Id == supplierId && s.IsActive)
+                .Select(s => new StockMovementPersonRef(s.Id, s.Name))
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new BadRequestException("El proveedor elegido no existe o está desactivado.", ErrorCodes.SupplierUnavailable);
+        }
+
+        var now = clock.UtcNow;
+        var date = request.Date!.Value;
+        var occurredAt = date == clock.Today ? now : clock.ToUtc(date, new TimeOnly(12, 0));
+        var documentNumber = AccountRules.TrimToNull(request.DocumentNumber);
+        var userId = User.GetRequiredUserId();
+
+        await using var transaction = await ledger.BeginAsync(cancellationToken);
+        var lines = new List<(StockChangeResult Result, PurchaseItemRequest Item)>();
+        foreach (var item in request.Items!.OrderBy(i => i.ProductId))
+        {
+            var unitCost = item.UnitCost!.Value;
+            var result = await ledger.ApplyAsync(new StockChange(
+                item.ProductId!.Value,
+                StockMovementType.In,
+                item.Quantity!.Value,
+                userId,
+                occurredAt,
+                UnitCost: unitCost,
+                SupplierId: supplier?.Id,
+                DocumentNumber: documentNumber), cancellationToken);
+            if (result.CostBefore != unitCost)
+            {
+                await ledger.SetCostAsync(item.ProductId.Value, unitCost, cancellationToken);
+                db.PriceHistory.Add(new PriceHistory
+                {
+                    EntityType = PriceEntityType.Product,
+                    EntityId = item.ProductId.Value,
+                    Field = PriceField.Cost,
+                    OldPrice = result.CostBefore,
+                    NewPrice = unitCost,
+                    Reason = PriceChangeReason.Purchase,
+                    ChangedById = userId,
+                    ChangedAt = now,
+                });
+            }
+
+            lines.Add((result, item));
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        var items = request.Items!
+            .Select(item => lines.Single(l => l.Item.ProductId == item.ProductId))
+            .Select(l => new PurchaseItemResponse(
+                l.Result.Movement.Id,
+                l.Result.Movement.ProductId,
+                l.Result.ProductName,
+                l.Result.Movement.Quantity,
+                l.Result.Movement.UnitCost!.Value,
+                l.Result.CostBefore,
+                l.Result.Movement.UnitCost.Value,
+                l.Result.Movement.BalanceAfter))
+            .ToList();
+        var total = items.Sum(i => i.Quantity * i.UnitCost);
+        return StatusCode(StatusCodes.Status201Created, new PurchaseResponse(supplier, documentNumber, occurredAt, total, items));
     }
 
     [HttpGet("movements")]
@@ -94,7 +171,7 @@ public sealed class StockController(AppDbContext db, StockLedger ledger, Busines
         return new StockAlertsResponse(items.Count, items);
     }
 
-    private IQueryable<StockMovementResponse> Project(IQueryable<Domain.Entities.StockMovement> source) =>
+    private IQueryable<StockMovementResponse> Project(IQueryable<StockMovement> source) =>
         source.AsNoTracking().Select(m => new StockMovementResponse(
             m.Id,
             m.ProductId,
