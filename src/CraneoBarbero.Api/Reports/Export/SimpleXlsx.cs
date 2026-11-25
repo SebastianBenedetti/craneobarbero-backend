@@ -195,7 +195,7 @@ public sealed class SimpleXlsx(string sheetName)
     {
         var xml = new StringBuilder();
         xml.Append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">""");
-        xml.Append("""<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>""");
+        xml.Append("""<sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>""");
         var tableCells = _rows.SelectMany(r => r.Cells).Where(c => c.Style is >= HeaderStyle and <= PercentStyle).ToList();
         var columns = tableCells.Count == 0 ? 1 : tableCells.Max(c => c.Column) + 1;
         for (var c = 0; c < columns; c++)
