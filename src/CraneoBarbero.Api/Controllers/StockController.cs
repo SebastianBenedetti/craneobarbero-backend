@@ -159,6 +159,61 @@ public sealed class StockController(AppDbContext db, StockLedger ledger, Busines
         return new PagedResponse<StockMovementResponse>(items, page, pageSize, total);
     }
 
+    [HttpGet("valuation")]
+    public async Task<ValuationResponse> Valuation(CancellationToken cancellationToken)
+    {
+        var products = await db.Products.AsNoTracking()
+            .Include(p => p.Category)
+            .Where(p => p.IsActive || p.Stock > 0)
+            .ToListAsync(cancellationToken);
+        var items = products
+            .Select(p => new ValuationItem(
+                p.Id,
+                p.Name,
+                new ProductCategoryRef(p.Category!.Id, p.Category.Name),
+                p.IsActive,
+                p.Stock,
+                p.Cost,
+                p.Stock * p.Cost,
+                p.SalePrice,
+                p.Stock * p.SalePrice,
+                StockMath.Margin(p.SalePrice, p.Cost),
+                StockMath.MarginPercent(p.SalePrice, p.Cost)))
+            .OrderByDescending(i => i.CostValue)
+            .ThenBy(i => i.Name)
+            .ToList();
+        return new ValuationResponse(
+            items.Sum(i => i.Stock),
+            items.Sum(i => i.CostValue),
+            items.Sum(i => i.SaleValue),
+            items);
+    }
+
+    [HttpGet("reorder")]
+    public async Task<ReorderResponse> Reorder(CancellationToken cancellationToken)
+    {
+        var products = await db.Products.AsNoTracking()
+            .Include(p => p.DefaultSupplier)
+            .Where(p => p.IsActive && p.Stock <= p.MinStock)
+            .ToListAsync(cancellationToken);
+        var items = products
+            .OrderBy(p => p.DefaultSupplier == null)
+            .ThenBy(p => p.DefaultSupplier?.Name)
+            .ThenBy(p => p.Name)
+            .Select(p => new ReorderItem(
+                p.Id,
+                p.Name,
+                p.Sku,
+                p.Stock,
+                p.MinStock,
+                p.ReorderQuantity,
+                p.Cost,
+                p.ReorderQuantity * p.Cost,
+                p.DefaultSupplier is null ? null : new ProductSupplierRef(p.DefaultSupplier.Id, p.DefaultSupplier.Name)))
+            .ToList();
+        return new ReorderResponse(items.Count, items.Sum(i => i.EstimatedCost ?? 0m), items);
+    }
+
     [HttpGet("alerts")]
     public async Task<StockAlertsResponse> Alerts(CancellationToken cancellationToken)
     {
