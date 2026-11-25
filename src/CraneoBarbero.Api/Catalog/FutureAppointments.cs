@@ -1,3 +1,4 @@
+using CraneoBarbero.Api.Configuration;
 using CraneoBarbero.Api.Data;
 using CraneoBarbero.Api.Domain.Entities;
 using CraneoBarbero.Api.Domain.Enums;
@@ -5,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CraneoBarbero.Api.Catalog;
 
-public sealed class FutureAppointments(AppDbContext db, TimeProvider time)
+public sealed class FutureAppointments(AppDbContext db, BusinessClock clock)
 {
     public Task<int> CountForBranchAsync(int branchId, CancellationToken cancellationToken) =>
         Upcoming().CountAsync(a => a.BranchId == branchId, cancellationToken);
@@ -18,7 +19,7 @@ public sealed class FutureAppointments(AppDbContext db, TimeProvider time)
 
     private IQueryable<Appointment> Upcoming()
     {
-        var now = time.GetUtcNow();
+        var now = clock.UtcNow;
         return db.Appointments.Where(a =>
             (a.Status == AppointmentStatus.Pending || a.Status == AppointmentStatus.AwaitingPayment) &&
             a.EndDate > now);
