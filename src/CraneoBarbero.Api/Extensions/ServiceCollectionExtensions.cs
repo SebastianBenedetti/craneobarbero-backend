@@ -83,6 +83,7 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<AdminSeedHostedService>();
         services.AddScoped<LegacyImporter>();
         services.AddScoped<Catalog.FutureAppointments>();
+        services.AddScoped<Store.StockLedger>();
         services.AddScoped<Schedule.OpeningSchedule>();
         services.AddScoped<Schedule.SlotGenerator>();
         services.AddScoped<Schedule.AvailabilityService>();
