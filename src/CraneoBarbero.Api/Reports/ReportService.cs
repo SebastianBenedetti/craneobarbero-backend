@@ -180,7 +180,7 @@ public sealed class ReportService(AppDbContext db, BusinessClock clock)
 
     public async Task<IReadOnlyList<PeriodReportRow>> ByPeriodAsync(ReportScope scope, string? groupBy, bool includeProducts, CancellationToken cancellationToken)
     {
-        var monthly = groupBy == ReportGrouping.Month || (groupBy is null && scope.To.DayNumber - scope.From.DayNumber > 62);
+        var monthly = groupBy == ReportGrouping.Month || (groupBy is null && scope.To.DayNumber - scope.From.DayNumber > 31);
         var appointments = await AppointmentsAsync(scope, cancellationToken);
         var items = includeProducts ? await OrderItemsAsync(scope, cancellationToken) : [];
 

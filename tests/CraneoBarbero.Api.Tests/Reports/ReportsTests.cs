@@ -158,16 +158,22 @@ public sealed class ReportsTests(ScheduleApiFactory factory) : IClassFixture<Sch
         Assert.StartsWith("%PDF-1.4", pdfText);
         Assert.Contains("Ganancia de productos", pdfText);
         Assert.Contains("Cera reporte", pdfText);
+        Assert.Contains("Noviembre 2026", pdfText);
+        Assert.Contains("Turnos por estado", pdfText);
         Assert.EndsWith("%%EOF\n", pdfText);
 
         var xlsx = await s.Admin.GetAsync($"/reports/admin/export?format=xlsx&{November}");
         Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xlsx.Content.Headers.ContentType!.MediaType);
         using var zip = new ZipArchive(new MemoryStream(await xlsx.Content.ReadAsByteArrayAsync()));
         using var workbook = new StreamReader(zip.GetEntry("xl/workbook.xml")!.Open());
-        Assert.Contains("Por producto", await workbook.ReadToEndAsync());
-        Assert.Equal(8, zip.Entries.Count(e => e.FullName.StartsWith("xl/worksheets/", StringComparison.Ordinal)));
-        using var summarySheet = new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open());
-        Assert.Contains("<v>8500</v>", await summarySheet.ReadToEndAsync());
+        Assert.Contains("name=\"Reporte\"", await workbook.ReadToEndAsync());
+        Assert.Single(zip.Entries, e => e.FullName.StartsWith("xl/worksheets/sheet", StringComparison.Ordinal));
+        Assert.Equal(4, zip.Entries.Count(e => e.FullName.StartsWith("xl/charts/chart", StringComparison.Ordinal)));
+        using var reportSheet = new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open());
+        var sheetXml = await reportSheet.ReadToEndAsync();
+        Assert.Contains("<v>8500</v>", sheetXml);
+        Assert.Contains("Ganancia de productos", sheetXml);
+        Assert.Contains("Noviembre 2026", sheetXml);
 
         await HttpAssertions.AssertErrorAsync(await s.Admin.GetAsync($"/reports/admin/export?format=doc&{November}"), HttpStatusCode.BadRequest, "bad_request");
         await HttpAssertions.AssertErrorAsync(await s.Admin.GetAsync("/reports/admin/summary?from=2026-11-30&to=2026-11-01"), HttpStatusCode.BadRequest, "validation_error");
