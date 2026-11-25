@@ -147,6 +147,8 @@ public static class ServiceCollectionExtensions
         services.AddTransient<Pricing.IInflationSource>(provider => provider.GetRequiredService<Pricing.ArgentinaDatosInflationSource>());
         services.AddScoped<Pricing.InflationService>();
         services.AddScoped<Pricing.PriceAdjustments>();
+        services.AddScoped<Reports.ReportService>();
+        services.AddScoped<Reports.Export.ReportExporter>();
 
         return services;
     }
