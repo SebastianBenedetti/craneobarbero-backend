@@ -4,6 +4,7 @@ using CraneoBarbero.Api.Auth;
 using CraneoBarbero.Api.Common.Errors;
 using CraneoBarbero.Api.Data;
 using CraneoBarbero.Api.Payments;
+using CraneoBarbero.Api.Store;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -78,14 +79,30 @@ public sealed class PaymentsController(
     {
         var clientId = User.GetRequiredUserId();
         var gatewayId = new[] { paymentId, collectionId }.FirstOrDefault(id => !string.IsNullOrWhiteSpace(id) && id != "null");
-        int? appointmentId = AppointmentPayments.TryParseReference(externalReference, out var parsed) ? parsed : null;
+        var target = new PaymentTarget(
+            AppointmentPayments.TryParseReference(externalReference, out var parsed) ? parsed : null,
+            OrderPayments.TryParseReference(externalReference, out var parsedOrder) ? parsedOrder : null);
 
         if (gatewayId is not null && gatewayId.All(char.IsAsciiLetterOrDigit) && gatewayId.Length <= 40)
         {
-            appointmentId = await payments.ProcessGatewayPaymentAsync(gatewayId, cancellationToken) ?? appointmentId;
+            target = await payments.ProcessGatewayPaymentAsync(gatewayId, cancellationToken) ?? target;
         }
 
-        if (appointmentId is null)
+        if (target.OrderId is { } orderId)
+        {
+            var order = await db.Orders.AsNoTracking()
+                            .Include(o => o.Client).Include(o => o.Branch).Include(o => o.Items).ThenInclude(i => i.Product)
+                            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
+                        ?? throw new NotFoundException("No se encontró el pedido.");
+            if (order.ClientId != clientId)
+            {
+                throw new ForbiddenException();
+            }
+
+            return new PaymentReturnResponse(status, null, OrderResponse.From(order, forAdmin: false));
+        }
+
+        if (target.AppointmentId is not { } appointmentId)
         {
             throw new BadRequestException("No se pudo identificar el turno del pago.", ErrorCodes.BadRequest);
         }
