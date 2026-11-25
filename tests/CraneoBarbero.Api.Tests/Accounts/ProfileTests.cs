@@ -81,6 +81,22 @@ public sealed class ProfileTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.True(errors.TryGetProperty("imageUrl", out _));
     }
 
+    [Theory]
+    [InlineData("/images/seba.jpg", HttpStatusCode.OK)]
+    [InlineData("https://example.com/foto.jpg", HttpStatusCode.OK)]
+    [InlineData("//evil.example.com/foto.jpg", HttpStatusCode.BadRequest)]
+    [InlineData("/\\evil.example.com/foto.jpg", HttpStatusCode.BadRequest)]
+    [InlineData("images/foto.jpg", HttpStatusCode.BadRequest)]
+    [InlineData("/images/mi foto.jpg", HttpStatusCode.BadRequest)]
+    public async Task Image_accepts_web_addresses_and_site_paths(string imageUrl, HttpStatusCode expected)
+    {
+        var client = await factory.ClientForAsync(UserRole.Client);
+
+        var response = await client.PutAsJsonAsync("/me", new { name = "Nombre Nuevo", imageUrl });
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
     [Fact]
     public async Task Change_password_requires_the_current_password()
     {

@@ -84,6 +84,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<LegacyImporter>();
         services.AddScoped<Catalog.FutureAppointments>();
         services.AddScoped<Store.StockLedger>();
+        services.AddScoped<Pricing.PriceHistoryWriter>();
         services.AddScoped<Store.OrderTransitions>();
         services.AddScoped<Store.OrderManagement>();
         services.AddScoped<Payments.OrderPayments>();
@@ -128,6 +129,26 @@ public static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(settings.HolidaysApiTimeoutSeconds);
         });
         services.AddHostedService<Schedule.ScheduleJobsService>();
+        services.AddMemoryCache();
+        services.AddOptions<Pricing.PricingSettings>().BindConfiguration(Pricing.PricingSettings.SectionName);
+        services.AddHttpClient<Pricing.IndecInflationSource>((provider, client) =>
+        {
+            var settings = provider.GetRequiredService<IOptions<Pricing.PricingSettings>>().Value;
+            client.BaseAddress = new Uri(settings.IndecApiUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
+        });
+        services.AddHttpClient<Pricing.ArgentinaDatosInflationSource>((provider, client) =>
+        {
+            var settings = provider.GetRequiredService<IOptions<Pricing.PricingSettings>>().Value;
+            client.BaseAddress = new Uri(settings.FallbackApiUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
+        });
+        services.AddTransient<Pricing.IInflationSource>(provider => provider.GetRequiredService<Pricing.IndecInflationSource>());
+        services.AddTransient<Pricing.IInflationSource>(provider => provider.GetRequiredService<Pricing.ArgentinaDatosInflationSource>());
+        services.AddScoped<Pricing.InflationService>();
+        services.AddScoped<Pricing.PriceAdjustments>();
+        services.AddScoped<Reports.ReportService>();
+        services.AddScoped<Reports.Export.ReportExporter>();
 
         return services;
     }

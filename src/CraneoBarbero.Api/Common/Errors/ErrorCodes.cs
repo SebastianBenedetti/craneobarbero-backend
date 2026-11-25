@@ -52,6 +52,10 @@ public static class ErrorCodes
     public const string InsufficientStock = "insufficient_stock";
     public const string InvalidStatusTransition = "invalid_status_transition";
     public const string NotRefundable = "not_refundable";
+    public const string ConfirmationRequired = "confirmation_required";
+    public const string NothingToAdjust = "nothing_to_adjust";
+    public const string NotLastAdjustment = "not_last_adjustment";
+    public const string AlreadyReverted = "already_reverted";
 }
 
 public static class ErrorMessages

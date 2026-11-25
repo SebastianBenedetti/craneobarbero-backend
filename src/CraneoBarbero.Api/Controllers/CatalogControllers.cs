@@ -135,7 +135,7 @@ public sealed class BranchesController(AppDbContext db, FutureAppointments futur
 
 [ApiController]
 [Route("cuts")]
-public sealed class CutsController(AppDbContext db, FutureAppointments futureAppointments) : ControllerBase
+public sealed class CutsController(AppDbContext db, FutureAppointments futureAppointments, Pricing.PriceHistoryWriter history) : ControllerBase
 {
     [AllowAnonymous]
     [HttpGet]
@@ -178,7 +178,9 @@ public sealed class CutsController(AppDbContext db, FutureAppointments futureApp
     public async Task<CutResponse> Update(int id, CutRequest request, CancellationToken cancellationToken)
     {
         var cut = await FindAsync(id, cancellationToken);
+        var oldPrice = cut.Price;
         Apply(cut, request);
+        history.Record(PriceEntityType.Cut, cut.Id, PriceField.Price, oldPrice, cut.Price, PriceChangeReason.Manual, User.GetRequiredUserId());
         await db.SaveChangesAsync(cancellationToken);
         return CutResponse.From(cut);
     }

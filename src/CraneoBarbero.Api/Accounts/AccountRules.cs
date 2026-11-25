@@ -39,11 +39,12 @@ public static partial class AccountRules
             .WithMessage("El teléfono solo puede tener números, espacios y los signos + - ( ), entre 6 y 30 caracteres.");
 
     public static IRuleBuilderOptions<T, string?> OptionalImageUrl<T>(this IRuleBuilder<T, string?> rule) =>
-        rule.Must(url => string.IsNullOrWhiteSpace(url) ||
-                         (url.Trim().Length <= 500 &&
-                          Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri) &&
-                          (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp)))
-            .WithMessage("La imagen debe ser una dirección web (http o https) de hasta 500 caracteres.");
+        rule.Must(url => string.IsNullOrWhiteSpace(url) || (url.Trim().Length <= 500 && IsImageLocation(url.Trim())))
+            .WithMessage("La imagen debe ser una dirección web (http o https) o una ruta del sitio que empiece con /, de hasta 500 caracteres.");
+
+    private static bool IsImageLocation(string url) =>
+        SitePathPattern().IsMatch(url) ||
+        (Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp));
 
     public static string? TrimToNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -52,4 +53,7 @@ public static partial class AccountRules
 
     [GeneratedRegex(@"^[0-9+()\-\s]{6,30}$")]
     private static partial Regex PhonePattern();
+
+    [GeneratedRegex(@"^/(?![/\\])[^\s\\]*$")]
+    private static partial Regex SitePathPattern();
 }

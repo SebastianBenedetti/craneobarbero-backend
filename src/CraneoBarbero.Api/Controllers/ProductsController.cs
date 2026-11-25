@@ -1,10 +1,10 @@
 using CraneoBarbero.Api.Accounts;
 using CraneoBarbero.Api.Auth;
 using CraneoBarbero.Api.Common.Errors;
-using CraneoBarbero.Api.Configuration;
 using CraneoBarbero.Api.Data;
 using CraneoBarbero.Api.Domain.Entities;
 using CraneoBarbero.Api.Domain.Enums;
+using CraneoBarbero.Api.Pricing;
 using CraneoBarbero.Api.Store;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +14,7 @@ namespace CraneoBarbero.Api.Controllers;
 
 [ApiController]
 [Route("products")]
-public sealed class ProductsController(AppDbContext db, BusinessClock clock) : ControllerBase
+public sealed class ProductsController(AppDbContext db, PriceHistoryWriter history) : ControllerBase
 {
     [Authorize(Policy = Policies.ClientOrAdmin)]
     [HttpGet]
@@ -97,8 +97,8 @@ public sealed class ProductsController(AppDbContext db, BusinessClock clock) : C
         }
 
         var userId = User.GetRequiredUserId();
-        RecordChange(product.Id, PriceField.Price, oldPrice, product.SalePrice, userId);
-        RecordChange(product.Id, PriceField.Cost, oldCost, product.Cost, userId);
+        history.Record(PriceEntityType.Product, product.Id, PriceField.Price, oldPrice, product.SalePrice, PriceChangeReason.Manual, userId);
+        history.Record(PriceEntityType.Product, product.Id, PriceField.Cost, oldCost, product.Cost, PriceChangeReason.Manual, userId);
         await db.SaveChangesAsync(cancellationToken);
         return await LoadAsync(id, cancellationToken);
     }
@@ -121,26 +121,6 @@ public sealed class ProductsController(AppDbContext db, BusinessClock clock) : C
 
         return products.Where(p => p.Name.ToLower().Contains(lower) ||
                                    (includeSku && p.Sku != null && p.Sku.ToLower().Contains(lower)));
-    }
-
-    private void RecordChange(int productId, PriceField field, decimal oldValue, decimal newValue, int userId)
-    {
-        if (oldValue == newValue)
-        {
-            return;
-        }
-
-        db.PriceHistory.Add(new PriceHistory
-        {
-            EntityType = PriceEntityType.Product,
-            EntityId = productId,
-            Field = field,
-            OldPrice = oldValue,
-            NewPrice = newValue,
-            Reason = PriceChangeReason.Manual,
-            ChangedById = userId,
-            ChangedAt = clock.UtcNow,
-        });
     }
 
     private async Task ApplyAsync(Product product, ProductRequest request, CancellationToken cancellationToken)

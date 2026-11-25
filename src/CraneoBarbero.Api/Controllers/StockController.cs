@@ -6,6 +6,7 @@ using CraneoBarbero.Api.Configuration;
 using CraneoBarbero.Api.Data;
 using CraneoBarbero.Api.Domain.Entities;
 using CraneoBarbero.Api.Domain.Enums;
+using CraneoBarbero.Api.Pricing;
 using CraneoBarbero.Api.Store;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +17,7 @@ namespace CraneoBarbero.Api.Controllers;
 [ApiController]
 [Route("stock")]
 [Authorize(Policy = Policies.Admin)]
-public sealed class StockController(AppDbContext db, StockLedger ledger, BusinessClock clock) : ControllerBase
+public sealed class StockController(AppDbContext db, StockLedger ledger, PriceHistoryWriter history, BusinessClock clock) : ControllerBase
 {
     [HttpPost("movements")]
     public async Task<ActionResult<StockMovementResponse>> Adjust(StockAdjustmentRequest request, CancellationToken cancellationToken)
@@ -75,17 +76,7 @@ public sealed class StockController(AppDbContext db, StockLedger ledger, Busines
             if (result.CostBefore != unitCost)
             {
                 await ledger.SetCostAsync(item.ProductId.Value, unitCost, cancellationToken);
-                db.PriceHistory.Add(new PriceHistory
-                {
-                    EntityType = PriceEntityType.Product,
-                    EntityId = item.ProductId.Value,
-                    Field = PriceField.Cost,
-                    OldPrice = result.CostBefore,
-                    NewPrice = unitCost,
-                    Reason = PriceChangeReason.Purchase,
-                    ChangedById = userId,
-                    ChangedAt = now,
-                });
+                history.Record(PriceEntityType.Product, item.ProductId.Value, PriceField.Cost, result.CostBefore, unitCost, PriceChangeReason.Purchase, userId);
             }
 
             lines.Add((result, item));
