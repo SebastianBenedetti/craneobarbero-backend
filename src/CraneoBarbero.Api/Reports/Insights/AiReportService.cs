@@ -43,10 +43,7 @@ public sealed class AiReportService(InsightData data, IReportWriter writer)
 
     private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-AR");
 
-    public static string FileName(ReportScope scope) =>
-        scope.From.Year == scope.To.Year && scope.From.Month == scope.To.Month
-            ? $"Reporte mensual Cráneo Barbero {scope.To:yyyy-MM}.pdf"
-            : $"Reporte mensual Cráneo Barbero {scope.From:yyyy-MM} a {scope.To:yyyy-MM}.pdf";
+    public static string FileName(ReportScope scope) => ReportNames.FileName(scope, "pdf");
 
     public async Task<AiReportResult> GenerateAsync(ReportScope scope, bool useAi, CancellationToken cancellationToken)
     {
@@ -59,8 +56,8 @@ public sealed class AiReportService(InsightData data, IReportWriter writer)
 
     private static byte[] Build(InsightSnapshot s, ReportNarrative narrative)
     {
-        var period = $"{s.Scope.From.ToString("dd/MM/yyyy", Spanish)} al {s.Scope.To.ToString("dd/MM/yyyy", Spanish)}";
-        var pdf = new SimplePdf(Title, [$"Período: {period}", $"Alcance: {s.ScopeName}"], $"Cráneo Barbero · Reporte mensual del {period} · {s.ScopeName}");
+        var period = ReportNames.Period(s.Scope);
+        var pdf = new SimplePdf(Title, [$"Período: {period}", $"Alcance: {s.ScopeName}"], $"Cráneo Barbero · Reporte mensual {period} · {s.ScopeName}");
         var rating = s.Reviews.AverageBarber is { } average ? average.ToString("0.0", Spanish) + " / 5" : "Sin reseñas";
         pdf.Stats(
         [
@@ -89,7 +86,22 @@ public sealed class AiReportService(InsightData data, IReportWriter writer)
         var number = 1;
         foreach (var strategy in narrative.Strategies)
         {
-            pdf.Paragraph($"{number++}. {Clean(strategy)}", 9.5f, dark: true, before: 6f);
+            pdf.Paragraph($"{number++}. {Clean(strategy.Title)}", 10.5f, dark: true, before: 10f);
+            pdf.Paragraph($"Qué hacer: {Clean(strategy.Action)}", 9.5f, dark: true, before: 3f);
+            if (!string.IsNullOrWhiteSpace(strategy.Reason))
+            {
+                pdf.Paragraph($"Por qué: {Clean(strategy.Reason)}", 9.5f, dark: true, before: 3f);
+            }
+
+            if (!string.IsNullOrWhiteSpace(strategy.HowTo))
+            {
+                pdf.Paragraph($"Cómo aplicarla: {Clean(strategy.HowTo)}", 9.5f, dark: true, before: 3f);
+            }
+
+            if (!string.IsNullOrWhiteSpace(strategy.Measure))
+            {
+                pdf.Paragraph($"Qué medir: {Clean(strategy.Measure)}", 9.5f, dark: true, before: 3f);
+            }
         }
 
         pdf.Heading("Reseñas", 40f);
