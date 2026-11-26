@@ -16,6 +16,7 @@ namespace CraneoBarbero.Api.Controllers;
 public sealed class AppointmentsController(
     AppDbContext db,
     AppointmentBooking booking,
+    OnlineBooking onlineBooking,
     AppointmentChanges changes,
     Payments.AppointmentPayments payments,
     OpeningSchedule opening,
@@ -29,25 +30,14 @@ public sealed class AppointmentsController(
     public async Task<ActionResult<CreatedAppointmentResponse>> Create(CreateAppointmentRequest request, CancellationToken cancellationToken)
     {
         var clientId = User.GetRequiredUserId();
-        var client = await db.Users.AsNoTracking().SingleAsync(u => u.Id == clientId, cancellationToken);
-        if (!client.EmailVerified)
-        {
-            throw new ForbiddenException("Verificá tu email para poder reservar turnos.", ErrorCodes.EmailNotVerified);
-        }
-
-        var appointment = await booking.BookAsync(new BookingRequest(
+        var (appointment, checkoutUrl) = await onlineBooking.BookAsync(
+            clientId,
             request.BarberId!.Value,
             request.CutId!.Value,
             request.AppointmentDate!.Value,
             request.BranchId,
-            clientId,
-            null,
-            UserRole.Client,
-            clientId,
-            PaymentMethod.MercadoPago,
-            Online: true), cancellationToken);
+            cancellationToken);
 
-        var checkoutUrl = await payments.TryStartCheckoutAsync(appointment, cancellationToken);
         var response = new CreatedAppointmentResponse(await LoadAsync(appointment.Id, cancellationToken), checkoutUrl);
         return CreatedAtAction(nameof(Get), new { id = appointment.Id }, response);
     }

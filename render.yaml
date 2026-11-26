@@ -29,3 +29,5 @@ services:
         sync: false
       - key: MP_WEBHOOK_SECRET
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
