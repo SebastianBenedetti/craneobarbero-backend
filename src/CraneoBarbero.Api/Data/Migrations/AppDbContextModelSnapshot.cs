@@ -1189,6 +1189,10 @@ namespace CraneoBarbero.Api.Data.Migrations
                         .HasColumnType("date")
                         .HasColumnName("startDate");
 
+                    b.Property<DateTimeOffset?>("TermsAcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("termsAcceptedAt");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updatedAt");

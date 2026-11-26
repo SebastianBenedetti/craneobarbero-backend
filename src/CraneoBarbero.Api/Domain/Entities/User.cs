@@ -19,6 +19,7 @@ public class User : IHasTimestamps
     public UserRole Role { get; set; } = UserRole.Client;
     public bool IsActive { get; set; } = true;
     public bool EmailVerified { get; set; }
+    public DateTimeOffset? TermsAcceptedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 
