@@ -163,6 +163,17 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Pricing.PriceAdjustments>();
         services.AddScoped<Reports.ReportService>();
         services.AddScoped<Reports.Export.ReportExporter>();
+        services.AddScoped<Reports.Insights.InsightData>();
+        services.AddScoped<Reports.Insights.AiReportService>();
+        services.AddScoped<Reports.Insights.MonthlyReportJob>();
+        services.AddSingleton<Reports.Insights.AiReportQuota>();
+        services.AddHttpClient<Reports.Insights.IReportWriter, Reports.Insights.GeminiReportWriter>((provider, client) =>
+        {
+            var settings = provider.GetRequiredService<IOptions<Assistant.AssistantSettings>>().Value;
+            client.BaseAddress = new Uri(settings.GeminiApiUrl);
+            client.Timeout = TimeSpan.FromSeconds(45);
+        });
+        services.AddHostedService<Reports.Insights.MonthlyReportJobsService>();
 
         return services;
     }
@@ -287,7 +298,7 @@ public static class ServiceCollectionExtensions
                     policy.WithOrigins(origins)
                         .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE")
                         .WithHeaders("Authorization", "Content-Type")
-                        .WithExposedHeaders("Retry-After", "Content-Disposition")
+                        .WithExposedHeaders("Retry-After", "Content-Disposition", "X-Report-Ai")
                         .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
                 });
             });

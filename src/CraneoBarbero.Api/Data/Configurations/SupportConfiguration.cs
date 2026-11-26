@@ -28,6 +28,13 @@ public static class SupportConfiguration
             entity.HasIndex(n => new { n.Status, n.ScheduledAt });
         });
 
+        modelBuilder.Entity<MonthlyReport>(entity =>
+        {
+            entity.ToTable("MonthlyReports");
+            entity.Property(r => r.Month).IsRequired().HasMaxLength(7);
+            entity.HasIndex(r => r.Month).IsUnique();
+        });
+
         modelBuilder.Entity<AuthToken>(entity =>
         {
             entity.ToTable("AuthTokens");

@@ -90,16 +90,15 @@ public sealed class SimplePdf
         _y -= 28f;
     }
 
-    public void Paragraph(string text)
+    public void Paragraph(string text, float size = 8f, bool dark = false, float before = 14f)
     {
-        const float size = 8f;
-        const float lineHeight = 11f;
+        var lineHeight = size * 1.4f;
         var lines = Wrap(text, ContentWidth, size);
-        EnsureSpace(lines.Count * lineHeight + 14f);
-        _y -= 14f;
+        EnsureSpace(lines.Count * lineHeight + before);
+        _y -= before;
         foreach (var line in lines)
         {
-            Text(Margin, _y - 8f, line, size, bold: false, Gray);
+            Text(Margin, _y - size, line, size, bold: false, dark ? Black : Gray);
             _y -= lineHeight;
         }
     }

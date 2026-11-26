@@ -28,7 +28,8 @@ Las variables de entorno se cargan desde un archivo `.env` local (no se versiona
 | `MP_PUBLIC_KEY` | Public Key de Mercado Pago (la usa el front si hiciera falta). |
 | `MP_WEBHOOK_SECRET` | Clave secreta de las notificaciones (webhooks) de Mercado Pago; sin ella se rechazan todas las notificaciones. |
 | `MP_NOTIFICATION_URL` | URL del webhook (opcional). En Render se arma sola con `RENDER_EXTERNAL_URL` + `/payments/webhook`. |
-| `GEMINI_API_KEY` | Clave de Google AI Studio para que el asistente entienda texto libre (opcional: sin ella el asistente funciona con botones). |
+| `GEMINI_API_KEY` | Clave de Google AI Studio para que el asistente entienda texto libre y para el reporte mensual con IA (opcional: sin ella el asistente funciona con botones y el reporte usa recomendaciones automáticas). |
+| `MONTHLY_REPORT_EMAILS` | Destinatarios del reporte mensual automático, separados por coma (opcional: sin ella el reporte se genera pero no se envía). |
 
 Los mails (verificación de email, recuperación de contraseña y avisos) se envían por la API HTTP de Brevo, porque el plan gratuito de Render bloquea los puertos SMTP. Se mandan en segundo plano y cada envío queda registrado en la tabla `Notifications`. Sin `BREVO_API_KEY` la API funciona igual, pero no envía mails.
 
@@ -62,6 +63,7 @@ Los turnos online se pagan con Checkout Pro de Mercado Pago, siempre en **modo d
 - **Tienda y stock:** productos, categorías, proveedores, compras, ajustes y movimientos de stock. El stock solo cambia con movimientos y se descuenta recién cuando se aprueba el pago del pedido; cada venta guarda el costo vigente para calcular la ganancia.
 - **Precios por inflación:** sugiere el porcentaje con la inflación del INDEC (`apis.datos.gob.ar`, con ArgentinaDatos de respaldo), muestra una vista previa, aplica el ajuste con redondeo y permite revertir el último. Todo cambio de precio o costo queda en el historial.
 - **Reportes:** ingresos, turnos, servicios, barberos, sucursales y productos por período; el admin los exporta a PDF y Excel (generados sin librerías externas).
+- **Reporte mensual con IA:** `GET /reports/admin/ai-report` (mismos filtros, hasta dos años) arma un PDF "Reporte mensual Cráneo Barbero AAAA-MM" con ocupación de la agenda por sucursal, día y franja, horarios más pedidos, barberos, servicios, productos y reseñas. Los números los calcula el servidor y se hace una sola consulta a Gemini para redactar el resumen y 2 a 4 estrategias (con reintento si Gemini está saturado). Sin Gemini, o pasados 10 reportes manuales en el día, usa recomendaciones automáticas. Además se genera solo el último día laboral de cada mes (sin domingos ni feriados), después del cierre, y se manda una vez a `MONTHLY_REPORT_EMAILS`; la tabla `MonthlyReports` evita repetirlo.
 - **Reseñas:** el cliente califica una vez cada turno completado (barbero y servicio, de 1 a 5).
 - **Asistente de reservas:** `POST /assistant/message`. Guía la reserva paso a paso con botones y entiende texto libre con un comparador local y, si falta algo, con Gemini (solo se le envía el texto del mensaje). Siempre confirma con un resumen y valida con las mismas reglas que la reserva normal.
 
