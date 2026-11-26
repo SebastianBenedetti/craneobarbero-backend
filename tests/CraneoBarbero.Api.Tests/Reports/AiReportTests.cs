@@ -122,18 +122,18 @@ public sealed class AiReportTests(AiReportApiFactory factory) : IClassFixture<Ai
     }
 
     [Fact]
-    public async Task Monthly_report_is_sent_once_after_closing_on_the_last_working_day()
+    public async Task Monthly_report_is_sent_once_at_noon_on_the_last_working_day()
     {
         factory.Writer.Configured = true;
         try
         {
-            factory.Time.SetUtcNow(Local(2026, 11, 30, 19, 0));
+            factory.Time.SetUtcNow(Local(2026, 11, 30, 11, 55));
             Assert.False(await RunJobAsync());
 
             factory.Time.SetUtcNow(Local(2026, 11, 27, 21, 0));
             Assert.False(await RunJobAsync());
 
-            factory.Time.SetUtcNow(Local(2026, 11, 30, 20, 5));
+            factory.Time.SetUtcNow(Local(2026, 11, 30, 12, 5));
             Assert.True(await RunJobAsync());
             Assert.False(await RunJobAsync());
 
