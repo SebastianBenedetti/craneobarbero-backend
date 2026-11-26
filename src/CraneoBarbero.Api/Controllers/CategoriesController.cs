@@ -13,7 +13,7 @@ namespace CraneoBarbero.Api.Controllers;
 [Route("categories")]
 public sealed class CategoriesController(AppDbContext db) : ControllerBase
 {
-    [Authorize(Policy = Policies.ClientOrAdmin)]
+    [AllowAnonymous]
     [HttpGet]
     public async Task<IReadOnlyList<CategoryResponse>> List(CancellationToken cancellationToken)
     {
@@ -23,7 +23,7 @@ public sealed class CategoriesController(AppDbContext db) : ControllerBase
         return categories.Select(CategoryResponse.From).ToList();
     }
 
-    [Authorize(Policy = Policies.ClientOrAdmin)]
+    [AllowAnonymous]
     [HttpGet("{id}")]
     public async Task<CategoryResponse> Get(int id, CancellationToken cancellationToken) =>
         CategoryResponse.From(await FindAsync(id, cancellationToken));

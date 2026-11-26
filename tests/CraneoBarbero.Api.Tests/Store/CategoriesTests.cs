@@ -9,12 +9,12 @@ namespace CraneoBarbero.Api.Tests.Store;
 public sealed class CategoriesTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
-    public async Task Reading_categories_requires_a_client_or_admin_session()
+    public async Task Categories_are_public_to_read()
     {
-        await HttpAssertions.AssertErrorAsync(await factory.CreateClient().GetAsync("/categories"), HttpStatusCode.Unauthorized, "unauthorized");
+        Assert.Equal(HttpStatusCode.OK, (await factory.CreateClient().GetAsync("/categories")).StatusCode);
 
         var barber = await factory.ClientForAsync(UserRole.Barber);
-        await HttpAssertions.AssertErrorAsync(await barber.GetAsync("/categories"), HttpStatusCode.Forbidden, "forbidden");
+        Assert.Equal(HttpStatusCode.OK, (await barber.GetAsync("/categories")).StatusCode);
 
         var client = await factory.ClientForAsync(UserRole.Client);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/categories")).StatusCode);
