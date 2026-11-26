@@ -16,7 +16,7 @@ namespace CraneoBarbero.Api.Controllers;
 [Route("products")]
 public sealed class ProductsController(AppDbContext db, PriceHistoryWriter history) : ControllerBase
 {
-    [Authorize(Policy = Policies.ClientOrAdmin)]
+    [AllowAnonymous]
     [HttpGet]
     public async Task<IReadOnlyList<object>> List([FromQuery] ProductListQuery query, CancellationToken cancellationToken)
     {
@@ -56,7 +56,7 @@ public sealed class ProductsController(AppDbContext db, PriceHistoryWriter histo
             : rows.Select(p => (object)ClientProductResponse.From(p)).ToList();
     }
 
-    [Authorize(Policy = Policies.ClientOrAdmin)]
+    [AllowAnonymous]
     [HttpGet("{id}")]
     public async Task<object> Get(int id, CancellationToken cancellationToken)
     {
