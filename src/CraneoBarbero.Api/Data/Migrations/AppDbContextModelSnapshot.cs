@@ -1109,6 +1109,41 @@ namespace CraneoBarbero.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CraneoBarbero.Api.Domain.Entities.StoredImage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("contentType");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<int?>("CreatedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("createdById");
+
+                    b.Property<byte[]>("Data")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("data");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedById", "CreatedAt");
+
+                    b.ToTable("Images", (string)null);
+                });
+
             modelBuilder.Entity("CraneoBarbero.Api.Domain.Entities.Supplier", b =>
                 {
                     b.Property<int>("Id")
@@ -1486,6 +1521,14 @@ namespace CraneoBarbero.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("CraneoBarbero.Api.Domain.Entities.StoredImage", b =>
+                {
+                    b.HasOne("CraneoBarbero.Api.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedById")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("CraneoBarbero.Api.Domain.Entities.User", b =>

@@ -35,6 +35,15 @@ public static class SupportConfiguration
             entity.HasIndex(r => r.Month).IsUnique();
         });
 
+        modelBuilder.Entity<StoredImage>(entity =>
+        {
+            entity.ToTable("Images");
+            entity.Property(i => i.ContentType).IsRequired().HasMaxLength(50);
+            entity.Property(i => i.Data).IsRequired();
+            entity.HasOne<User>().WithMany().HasForeignKey(i => i.CreatedById).OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(i => new { i.CreatedById, i.CreatedAt });
+        });
+
         modelBuilder.Entity<AuthToken>(entity =>
         {
             entity.ToTable("AuthTokens");

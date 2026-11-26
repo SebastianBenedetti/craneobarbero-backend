@@ -58,6 +58,7 @@ public static class ErrorCodes
     public const string AlreadyReverted = "already_reverted";
     public const string NotReviewable = "not_reviewable";
     public const string AlreadyReviewed = "already_reviewed";
+    public const string InvalidImage = "invalid_image";
 }
 
 public static class ErrorMessages

@@ -74,3 +74,12 @@ public class MonthlyReport : IHasCreatedAt
     public int EmailsSent { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }
+
+public class StoredImage : IHasCreatedAt
+{
+    public int Id { get; set; }
+    public string ContentType { get; set; } = string.Empty;
+    public byte[] Data { get; set; } = [];
+    public int? CreatedById { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}

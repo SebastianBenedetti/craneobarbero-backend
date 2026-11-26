@@ -25,6 +25,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AvailableSlot> AvailableSlots => Set<AvailableSlot>();
     public DbSet<Holiday> Holidays => Set<Holiday>();
     public DbSet<MonthlyReport> MonthlyReports => Set<MonthlyReport>();
+    public DbSet<StoredImage> Images => Set<StoredImage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

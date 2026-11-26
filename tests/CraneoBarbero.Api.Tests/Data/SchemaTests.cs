@@ -13,14 +13,14 @@ namespace CraneoBarbero.Api.Tests.Data;
 public sealed class SchemaTests
 {
     [Fact]
-    public void Model_has_the_tables_of_the_specification_and_the_monthly_reports()
+    public void Model_has_the_tables_of_the_specification_the_monthly_reports_and_the_images()
     {
         using var db = TestDb.CreateNpgsqlModelOnly();
 
         var tables = db.Model.GetEntityTypes().Select(t => t.GetTableName()).Order().ToArray();
 
-        Assert.Equal(InitialSchemaSql.Tables.Append("MonthlyReports").Order().ToArray(), tables);
-        Assert.Equal(19, tables.Length);
+        Assert.Equal(InitialSchemaSql.Tables.Append("MonthlyReports").Append("Images").Order().ToArray(), tables);
+        Assert.Equal(20, tables.Length);
     }
 
     [Fact]
