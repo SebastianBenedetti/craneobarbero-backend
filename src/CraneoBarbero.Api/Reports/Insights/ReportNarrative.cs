@@ -10,9 +10,11 @@ namespace CraneoBarbero.Api.Reports.Insights;
 public sealed record ReportNarrative(
     string Summary,
     string Occupancy,
-    IReadOnlyList<string> Strategies,
+    IReadOnlyList<ReportStrategy> Strategies,
     string Reviews,
     bool AiGenerated);
+
+public sealed record ReportStrategy(string Title, string Action, string Reason, string HowTo, string Measure);
 
 public interface IReportWriter
 {
@@ -36,7 +38,12 @@ public sealed class GeminiReportWriter(HttpClient http, IOptions<AssistantSettin
           para los días y franjas con menos turnos).
         - Proponé siempre entre 2 y 4 estrategias concretas y accionables, también si la barbería anda bien (por ejemplo combos de corte
           y producto, promociones en franjas flojas, fidelización, impulsar productos que rotan poco, sumar o reorganizar barberos).
-          Cada estrategia en una o dos oraciones, empezando con un verbo.
+          Cada estrategia tiene:
+          title: un nombre corto de 3 a 8 palabras, empezando con un verbo.
+          action: qué hacer, en 1 o 2 oraciones.
+          reason: por qué conviene, en 1 o 2 oraciones, citando el dato que la justifica (porcentaje, día, franja, sucursal, servicio o producto).
+          howTo: cómo aplicarla en concreto, en 2 a 3 oraciones (qué días u horarios, qué sucursal, qué producto o servicio, cómo difundirla y por cuánto tiempo).
+          measure: qué resultado medir el mes siguiente y con qué meta aproximada, en 1 o 2 oraciones.
         - Si hay reseñas, resumí qué se valora y qué se critica, sin citar nombres de clientes. Si no hay, decilo en una oración.
         - Sin markdown, sin viñetas dentro de los textos, sin emojis. Texto plano.
         """;
@@ -48,7 +55,24 @@ public sealed class GeminiReportWriter(HttpClient http, IOptions<AssistantSettin
         {
             ["summary"] = new { type = "STRING", description = "Resumen general del período, 3 a 5 oraciones." },
             ["occupancy"] = new { type = "STRING", description = "Análisis de ocupación por sucursal, días y horarios, 3 a 6 oraciones." },
-            ["strategies"] = new { type = "ARRAY", items = new { type = "STRING" }, description = "Entre 2 y 4 estrategias concretas." },
+            ["strategies"] = new
+            {
+                type = "ARRAY",
+                description = "Entre 2 y 4 estrategias concretas.",
+                items = new
+                {
+                    type = "OBJECT",
+                    properties = new Dictionary<string, object>
+                    {
+                        ["title"] = new { type = "STRING", description = "Nombre corto que empieza con un verbo." },
+                        ["action"] = new { type = "STRING", description = "Qué hacer." },
+                        ["reason"] = new { type = "STRING", description = "Por qué, con el dato que la justifica." },
+                        ["howTo"] = new { type = "STRING", description = "Cómo aplicarla en concreto." },
+                        ["measure"] = new { type = "STRING", description = "Qué resultado medir y con qué meta." },
+                    },
+                    required = new[] { "title", "action", "reason", "howTo", "measure" },
+                },
+            },
             ["reviews"] = new { type = "STRING", description = "Resumen de las reseñas, 2 a 4 oraciones." },
         },
         required = new[] { "summary", "occupancy", "strategies", "reviews" },
@@ -71,7 +95,7 @@ public sealed class GeminiReportWriter(HttpClient http, IOptions<AssistantSettin
             generationConfig = new
             {
                 temperature = 0.4,
-                maxOutputTokens = 2000,
+                maxOutputTokens = 4096,
                 responseMimeType = "application/json",
                 responseSchema = Schema,
             },
@@ -89,7 +113,8 @@ public sealed class GeminiReportWriter(HttpClient http, IOptions<AssistantSettin
             using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
             var answer = document.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString();
             var parsed = string.IsNullOrWhiteSpace(answer) ? null : JsonSerializer.Deserialize<GeminiAnswer>(answer, Json);
-            if (parsed is null || string.IsNullOrWhiteSpace(parsed.Summary) || parsed.Strategies is not { Count: > 0 })
+            if (parsed is null || string.IsNullOrWhiteSpace(parsed.Summary)
+                || parsed.Strategies?.Any(s => !string.IsNullOrWhiteSpace(s.Title) && !string.IsNullOrWhiteSpace(s.Action)) != true)
             {
                 return null;
             }
@@ -97,7 +122,12 @@ public sealed class GeminiReportWriter(HttpClient http, IOptions<AssistantSettin
             return new ReportNarrative(
                 parsed.Summary.Trim(),
                 parsed.Occupancy?.Trim() ?? string.Empty,
-                parsed.Strategies.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).Take(4).ToList(),
+                parsed.Strategies!
+                    .Where(s => !string.IsNullOrWhiteSpace(s.Title) && !string.IsNullOrWhiteSpace(s.Action))
+                    .Select(s => new ReportStrategy(s.Title!.Trim(), s.Action!.Trim(), s.Reason?.Trim() ?? string.Empty,
+                        s.HowTo?.Trim() ?? string.Empty, s.Measure?.Trim() ?? string.Empty))
+                    .Take(4)
+                    .ToList(),
                 parsed.Reviews?.Trim() ?? string.Empty,
                 AiGenerated: true);
         }
@@ -135,7 +165,9 @@ public sealed class GeminiReportWriter(HttpClient http, IOptions<AssistantSettin
         }
     }
 
-    private sealed record GeminiAnswer(string? Summary, string? Occupancy, List<string>? Strategies, string? Reviews);
+    private sealed record GeminiAnswer(string? Summary, string? Occupancy, List<GeminiStrategy>? Strategies, string? Reviews);
+
+    private sealed record GeminiStrategy(string? Title, string? Action, string? Reason, string? HowTo, string? Measure);
 }
 
 public static class InsightText
@@ -205,28 +237,69 @@ public static class InsightText
             occupancy += $" El día más ocupado fue el {highestDay.Label.ToLowerInvariant()} ({Percent(highestDay.Percent)}) y el más flojo, el {lowestDay.Label.ToLowerInvariant()} ({Percent(lowestDay.Percent)}).";
         }
 
-        var strategies = new List<string>();
+        var strategies = new List<ReportStrategy>();
         var total = s.Occupancy.Percent ?? 0;
+        var lowestDayName = lowestDay?.Label.ToLowerInvariant() ?? "día más flojo";
+        var lowestPart = s.OccupancyByPart.Where(r => r.Percent is not null).OrderBy(r => r.Percent).FirstOrDefault();
+        var lowestPartName = lowestPart?.Label.ToLowerInvariant() ?? "franja con menos turnos";
+        var busiestBranch = s.OccupancyByBranch.Where(r => r.Percent is not null).OrderByDescending(r => r.Percent).FirstOrDefault();
+        var totalText = Percent(s.Occupancy.Percent);
         if (total >= 85)
         {
-            strategies.Add("Evaluar sumar horarios o un barbero en la sucursal más ocupada, porque la agenda está casi llena.");
-            strategies.Add("Ajustar el precio de las franjas más pedidas y mantener el actual en las más tranquilas.");
+            var branchName = busiestBranch?.Label ?? "la sucursal más ocupada";
+            strategies.Add(new ReportStrategy(
+                "Sumar horarios donde la agenda está llena",
+                $"Abrir más horarios o sumar un barbero en {branchName}.",
+                $"La ocupación total fue de {totalText}" + (busiestBranch is null ? "." : $" y {branchName} llegó a {Percent(busiestBranch.Percent)}, así que hay clientes que no consiguen turno."),
+                $"Desde la Agenda, agregar horarios extra el {highestDay?.Label.ToLowerInvariant() ?? "día más pedido"} y en las horas con más turnos durante un mes. Si la demanda se sostiene, evaluar un barbero más a medio tiempo esos días.",
+                "Medir cuántos de los horarios nuevos se reservan: la meta es que se ocupen más del 70 % sin que baje la ocupación del resto."));
+            strategies.Add(new ReportStrategy(
+                "Ajustar el precio de las franjas más pedidas",
+                "Subir un poco el precio en los horarios con más demanda y mantenerlo en los más tranquilos.",
+                $"Con {totalText} de ocupación la agenda casi no tiene lugar, y los horarios más pedidos se llenan igual.",
+                "Aplicar un aumento chico (por ejemplo 5 a 10 %) solo en los servicios y horarios más pedidos y avisarlo con anticipación en el local y en las redes.",
+                "Comparar el ingreso por turnos y la ocupación con el mes anterior: la meta es más ingreso sin perder más de 5 puntos de ocupación."));
         }
         else if (total >= 60)
         {
-            strategies.Add($"Reforzar el {lowestDay?.Label.ToLowerInvariant() ?? "día más flojo"} con una promoción puntual, sin hacer publicidad general.");
-            strategies.Add("Ofrecer un combo de corte con un producto de la tienda para subir el ticket promedio.");
+            strategies.Add(new ReportStrategy(
+                $"Reforzar el {lowestDayName} con una promoción",
+                $"Ofrecer un beneficio puntual para los turnos del {lowestDayName}.",
+                $"La ocupación general es buena ({totalText}), pero el {lowestDayName} fue el día más flojo ({Percent(lowestDay?.Percent)}).",
+                $"Armar un descuento chico o un servicio extra sin cargo para los turnos del {lowestDayName}, sobre todo en la {lowestPartName}, y difundirlo en redes y en el local durante cuatro semanas, sin publicidad general.",
+                $"Medir la ocupación del {lowestDayName} al mes siguiente: la meta es subirla al menos 10 puntos."));
+            strategies.Add(new ReportStrategy(
+                "Ofrecer combos de corte y producto",
+                "Vender un combo de un servicio con un producto de la tienda a un precio conjunto.",
+                $"En el período se vendieron {s.Summary.Products.Units} productos por {Money(s.Summary.Products.Income)}, contra {appointments.Completed} turnos completados: hay margen para que más clientes se lleven algo.",
+                "Elegir uno o dos productos que se usen en el corte (por ejemplo una pomada o un aceite para barba), que el barbero lo recomiende al terminar y mostrar el combo en el mostrador.",
+                "Medir las unidades vendidas de esos productos y el ingreso por productos: la meta es crecer un 20 % el mes siguiente."));
         }
         else
         {
-            strategies.Add($"Lanzar una promoción para el {lowestDay?.Label.ToLowerInvariant() ?? "día más flojo"} y difundirla en redes y en el local.");
-            strategies.Add("Hacer publicidad paga acotada a la zona de cada sucursal durante el próximo mes y medir los turnos nuevos.");
+            strategies.Add(new ReportStrategy(
+                $"Lanzar una promoción para el {lowestDayName}",
+                $"Ofrecer un descuento concreto para los turnos del {lowestDayName}.",
+                $"La ocupación fue baja ({totalText}) y el {lowestDayName} fue el día con menos turnos ({Percent(lowestDay?.Percent)}).",
+                $"Publicar la promoción en redes y en el local durante cuatro semanas, con foco en la {lowestPartName}, y recordarla a los clientes que vinieron en los últimos meses.",
+                $"Medir la ocupación del {lowestDayName} y los turnos nuevos: la meta es subirla al menos 15 puntos."));
+            strategies.Add(new ReportStrategy(
+                "Hacer publicidad acotada a la zona",
+                "Invertir en publicidad paga cerca de cada sucursal durante un mes.",
+                $"Con {totalText} de ocupación sobran horarios abiertos y faltan clientes nuevos.",
+                "Usar un presupuesto chico en redes, segmentado a unas pocas cuadras de cada sucursal, con un mensaje simple que lleve a reservar el turno online.",
+                "Medir cuántos clientes nuevos reservan en el mes y la ocupación total: la meta es superar el 60 %."));
         }
 
         var slow = s.Products.Products.OrderBy(p => p.Units).FirstOrDefault();
         if (slow is not null)
         {
-            strategies.Add($"Impulsar {slow.Name}, que es el producto que menos se vendió, con un descuento o recomendándolo después del corte.");
+            strategies.Add(new ReportStrategy(
+                $"Impulsar {slow.Name}",
+                $"Dar más visibilidad a {slow.Name} con una recomendación o un descuento.",
+                $"Fue el producto que menos se vendió en el período ({slow.Units} unidades).",
+                "Ubicarlo a la vista en el mostrador, que los barberos lo recomienden cuando corresponda y ofrecer un descuento corto o sumarlo a un combo con un servicio.",
+                "Medir las unidades vendidas al mes siguiente: la meta es al menos duplicarlas o, si no se mueve, dejar de reponerlo."));
         }
 
         var reviews = s.Reviews.Count == 0

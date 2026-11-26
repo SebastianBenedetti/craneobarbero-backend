@@ -152,7 +152,7 @@ public sealed class ReportsTests(ScheduleApiFactory factory) : IClassFixture<Sch
         var pdf = await s.Admin.GetAsync($"/reports/admin/export?format=pdf&{November}");
         Assert.Equal(HttpStatusCode.OK, pdf.StatusCode);
         Assert.Equal("application/pdf", pdf.Content.Headers.ContentType!.MediaType);
-        Assert.Equal("reporte-craneo-barbero-2026-11-01-a-2026-11-30.pdf", pdf.Content.Headers.ContentDisposition!.FileName?.Trim('"'));
+        Assert.Equal("Reporte 2026-11 - Craneo Barbero.pdf", pdf.Content.Headers.ContentDisposition!.FileNameStar ?? pdf.Content.Headers.ContentDisposition!.FileName?.Trim('"'));
         var pdfBytes = await pdf.Content.ReadAsByteArrayAsync();
         var pdfText = System.Text.Encoding.Latin1.GetString(pdfBytes);
         Assert.StartsWith("%PDF-1.4", pdfText);

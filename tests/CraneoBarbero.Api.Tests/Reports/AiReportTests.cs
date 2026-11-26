@@ -25,7 +25,7 @@ public sealed class FakeReportWriter : IReportWriter
     {
         Requests.Add(data);
         return Task.FromResult<ReportNarrative?>(Configured
-            ? new ReportNarrative("Resumen de prueba.", "Ocupación de prueba.", ["Probar una promoción.", "Sumar un combo."], "Reseñas de prueba.", true)
+            ? new ReportNarrative("Resumen de prueba.", "Ocupación de prueba.", [new ReportStrategy("Probar una promoción", "Hacer una promoción.", "El lunes está flojo.", "Difundirla en redes.", "Medir la ocupación."), new ReportStrategy("Sumar un combo", "Vender un combo.", "Se venden pocos productos.", "Mostrarlo en el mostrador.", "Medir las unidades.")], "Reseñas de prueba.", true)
             : null);
     }
 }
@@ -71,7 +71,7 @@ public sealed class AiReportTests(AiReportApiFactory factory) : IClassFixture<Ai
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal("Reporte mensual Cráneo Barbero 2026-11.pdf", response.Content.Headers.ContentDisposition?.FileNameStar);
+        Assert.Equal("Reporte 2026-11 - Craneo Barbero.pdf", response.Content.Headers.ContentDisposition?.FileNameStar);
         Assert.Equal("true", response.Headers.GetValues("X-Report-Ai").Single());
         var bytes = await response.Content.ReadAsByteArrayAsync();
         Assert.StartsWith("%PDF", System.Text.Encoding.ASCII.GetString(bytes, 0, 4));
@@ -88,7 +88,7 @@ public sealed class AiReportTests(AiReportApiFactory factory) : IClassFixture<Ai
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("false", response.Headers.GetValues("X-Report-Ai").Single());
-        Assert.Equal("Reporte mensual Cráneo Barbero 2026-09 a 2026-11.pdf", response.Content.Headers.ContentDisposition?.FileNameStar);
+        Assert.Equal("Reporte 2026-09 a 2026-11 - Craneo Barbero.pdf", response.Content.Headers.ContentDisposition?.FileNameStar);
     }
 
     [Fact]
@@ -103,6 +103,12 @@ public sealed class AiReportTests(AiReportApiFactory factory) : IClassFixture<Ai
 
         Assert.False(narrative.AiGenerated);
         Assert.True(narrative.Strategies.Count >= 2);
+        Assert.All(narrative.Strategies, strategy =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(strategy.Reason));
+            Assert.False(string.IsNullOrWhiteSpace(strategy.HowTo));
+            Assert.False(string.IsNullOrWhiteSpace(strategy.Measure));
+        });
         Assert.False(string.IsNullOrWhiteSpace(narrative.Summary));
     }
 
@@ -139,7 +145,7 @@ public sealed class AiReportTests(AiReportApiFactory factory) : IClassFixture<Ai
 
             var mail = factory.Emails.SentTo(AiReportApiFactory.Recipient).Single();
             Assert.Contains("Noviembre 2026", mail.Subject);
-            Assert.Equal("Reporte mensual Cráneo Barbero 2026-11.pdf", mail.Attachments!.Single().FileName);
+            Assert.Equal("Reporte 2026-11 - Craneo Barbero.pdf", mail.Attachments!.Single().FileName);
             var stored = await factory.WithDbAsync(db => db.MonthlyReports.AsNoTracking().SingleAsync(r => r.Month == "2026-11"));
             Assert.True(stored.AiGenerated);
             Assert.Equal(1, stored.EmailsSent);

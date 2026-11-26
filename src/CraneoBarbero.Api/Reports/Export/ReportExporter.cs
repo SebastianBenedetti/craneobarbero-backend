@@ -31,9 +31,9 @@ public sealed class ReportExporter(ReportService reports, AppDbContext db)
             ? await db.Branches.AsNoTracking().Where(b => b.Id == branchId).Select(b => b.Name).FirstOrDefaultAsync(cancellationToken)
             : null;
 
-        var period = $"{scope.From.ToString("dd/MM/yyyy", Spanish)} al {scope.To.ToString("dd/MM/yyyy", Spanish)}";
+        var period = ReportNames.Period(scope);
         var scopeText = branchName ?? "Todas las sucursales";
-        var fileName = $"reporte-craneo-barbero-{scope.From:yyyy-MM-dd}-a-{scope.To:yyyy-MM-dd}.{format}";
+        var fileName = ReportNames.FileName(scope, format);
 
         var appointments = summary.Appointments;
         var summaryRows = new List<object?[]>
@@ -88,7 +88,7 @@ public sealed class ReportExporter(ReportService reports, AppDbContext db)
             return new ExportedFile(sheet.Build(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
         }
 
-        var pdf = new SimplePdf(Title, [$"Período: {period}", $"Alcance: {scopeText}"], $"Cráneo Barbero · Reporte del {period} · {scopeText}");
+        var pdf = new SimplePdf(Title, [$"Período: {period}", $"Alcance: {scopeText}"], $"Cráneo Barbero · Reporte {period} · {scopeText}");
         pdf.Stats(
         [
             new("Ingreso total", Money(summary.TotalIncome), "Turnos y productos"),
