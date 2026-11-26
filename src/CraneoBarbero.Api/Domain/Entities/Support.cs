@@ -63,3 +63,14 @@ public class Holiday : IHasTimestamps
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
+
+public class MonthlyReport : IHasCreatedAt
+{
+    public int Id { get; set; }
+    public string Month { get; set; } = string.Empty;
+    public DateOnly PeriodFrom { get; set; }
+    public DateOnly PeriodTo { get; set; }
+    public bool AiGenerated { get; set; }
+    public int EmailsSent { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}

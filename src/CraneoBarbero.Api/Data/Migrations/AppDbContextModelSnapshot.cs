@@ -425,6 +425,49 @@ namespace CraneoBarbero.Api.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CraneoBarbero.Api.Domain.Entities.MonthlyReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AiGenerated")
+                        .HasColumnType("boolean")
+                        .HasColumnName("aiGenerated");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("createdAt");
+
+                    b.Property<int>("EmailsSent")
+                        .HasColumnType("integer")
+                        .HasColumnName("emailsSent");
+
+                    b.Property<string>("Month")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("month");
+
+                    b.Property<DateOnly>("PeriodFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("periodFrom");
+
+                    b.Property<DateOnly>("PeriodTo")
+                        .HasColumnType("date")
+                        .HasColumnName("periodTo");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Month")
+                        .IsUnique();
+
+                    b.ToTable("MonthlyReports", (string)null);
+                });
+
             modelBuilder.Entity("CraneoBarbero.Api.Domain.Entities.Notification", b =>
                 {
                     b.Property<int>("Id")

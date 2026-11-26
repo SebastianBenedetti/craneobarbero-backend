@@ -24,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AuthToken> AuthTokens => Set<AuthToken>();
     public DbSet<AvailableSlot> AvailableSlots => Set<AvailableSlot>();
     public DbSet<Holiday> Holidays => Set<Holiday>();
+    public DbSet<MonthlyReport> MonthlyReports => Set<MonthlyReport>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

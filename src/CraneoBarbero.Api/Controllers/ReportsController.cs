@@ -2,6 +2,7 @@ using CraneoBarbero.Api.Auth;
 using CraneoBarbero.Api.Common.Errors;
 using CraneoBarbero.Api.Reports;
 using CraneoBarbero.Api.Reports.Export;
+using CraneoBarbero.Api.Reports.Insights;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,8 @@ namespace CraneoBarbero.Api.Controllers;
 
 [ApiController]
 [Route("reports")]
-public sealed class ReportsController(ReportService reports, ReportExporter exporter) : ControllerBase
+public sealed class ReportsController(
+    ReportService reports, ReportExporter exporter, AiReportService aiReports, AiReportQuota aiQuota) : ControllerBase
 {
     [Authorize(Policy = Policies.Admin)]
     [HttpGet("admin/summary")]
@@ -53,6 +55,15 @@ public sealed class ReportsController(ReportService reports, ReportExporter expo
 
         var file = await exporter.ExportAsync(reports.Scope(query), normalized, cancellationToken);
         return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    [Authorize(Policy = Policies.Admin)]
+    [HttpGet("admin/ai-report")]
+    public async Task<IActionResult> AiReport([FromQuery] ReportQuery query, CancellationToken cancellationToken)
+    {
+        var result = await aiReports.GenerateAsync(reports.Scope(query), aiQuota.TryUse(), cancellationToken);
+        Response.Headers["X-Report-Ai"] = result.Narrative.AiGenerated ? "true" : "false";
+        return File(result.File.Content, result.File.ContentType, result.File.FileName);
     }
 
     [Authorize(Policy = Policies.Barber)]
