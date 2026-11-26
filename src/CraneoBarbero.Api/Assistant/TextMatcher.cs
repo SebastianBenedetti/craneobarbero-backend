@@ -150,7 +150,12 @@ public static partial class TextMatcher
             return (DayPart.Morning, MorningPhrase().Replace(normalized, " "));
         }
 
-        if (HasPhrase(normalized, "tarde") || HasPhrase(normalized, "tardecita"))
+        if (HasPhrase(normalized, "temprano") || HasPhrase(normalized, "bien temprano"))
+        {
+            return (DayPart.Morning, normalized);
+        }
+
+        if (HasPhrase(normalized, "tarde") || HasPhrase(normalized, "tardecita") || HasPhrase(normalized, "a ultima hora"))
         {
             return (DayPart.Afternoon, normalized);
         }

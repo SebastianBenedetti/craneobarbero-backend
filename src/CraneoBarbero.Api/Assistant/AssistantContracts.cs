@@ -11,7 +11,7 @@ public sealed class AssistantSettings
     public int DaysPerPage { get; set; } = 8;
     public int MaxMessageLength { get; set; } = 300;
     public string GeminiApiUrl { get; set; } = "https://generativelanguage.googleapis.com/v1beta/";
-    public string GeminiModel { get; set; } = "gemini-2.5-flash-lite";
+    public string GeminiModel { get; set; } = "gemini-flash-lite-latest";
     public int GeminiTimeoutSeconds { get; set; } = 10;
     public int AiMessagesPerUserPerDay { get; set; } = 30;
     public int AiMessagesPerMinute { get; set; } = 10;
