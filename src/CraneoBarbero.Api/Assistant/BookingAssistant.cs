@@ -227,6 +227,19 @@ public sealed class BookingAssistant(
             return;
         }
 
+        if (TextMatcher.IsGreeting(normalized))
+        {
+            notes.Add(normalized.Contains("gracias", StringComparison.Ordinal)
+                ? "¡De nada! Sigo acá para ayudarte con tu turno."
+                : "¡Hola! Te ayudo a sacar un turno.");
+            if (conversation.Step == AssistantStep.Start)
+            {
+                conversation.Step = AssistantStep.Branch;
+            }
+
+            return;
+        }
+
         if (TextMatcher.IsRestart(normalized))
         {
             conversation.Reset();
@@ -318,7 +331,7 @@ public sealed class BookingAssistant(
         var time = TextMatcher.ParseTime(interpreted.Time);
         if (time is { } exact && part is null)
         {
-            part = exact.Hour < 13 ? DayPart.Morning : DayPart.Afternoon;
+            part = DayParts.Of(exact);
         }
 
         return new AssistantInterpretation(false, branchId, barberId, cutId, TextMatcher.ParseIsoDate(interpreted.Date), time, part);
@@ -678,8 +691,8 @@ public sealed class BookingAssistant(
 
                 var filtered = conversation.PreferredPart switch
                 {
-                    DayPart.Morning => starts.Where(s => opening.TimeOf(s).Hour < 13).ToList(),
-                    DayPart.Afternoon => starts.Where(s => opening.TimeOf(s).Hour >= 13).ToList(),
+                    DayPart.Morning => starts.Where(s => DayParts.Of(opening.TimeOf(s)) == DayPart.Morning).ToList(),
+                    DayPart.Afternoon => starts.Where(s => DayParts.Of(opening.TimeOf(s)) == DayPart.Afternoon).ToList(),
                     _ => starts.ToList(),
                 };
                 var partLabel = conversation.PreferredPart == DayPart.Morning ? " de la mañana" : " de la tarde";

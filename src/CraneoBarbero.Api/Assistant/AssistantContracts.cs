@@ -48,6 +48,13 @@ public enum DayPart
     Afternoon,
 }
 
+public static class DayParts
+{
+    public static readonly TimeOnly AfternoonStart = new(14, 0);
+
+    public static DayPart Of(TimeOnly time) => time < AfternoonStart ? DayPart.Morning : DayPart.Afternoon;
+}
+
 public sealed record AssistantOption(string Label, string Value);
 
 public sealed record AssistantSummary(
@@ -94,6 +101,7 @@ public sealed class AssistantConversation
         CutId = null;
         ClearDay();
         PendingDate = null;
+        PreferredPart = null;
         AppointmentId = null;
         CheckoutUrl = null;
     }
@@ -103,7 +111,6 @@ public sealed class AssistantConversation
         Date = null;
         StartAt = null;
         DayPage = 0;
-        PreferredPart = null;
     }
 }
 

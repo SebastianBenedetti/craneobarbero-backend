@@ -37,6 +37,12 @@ public static partial class TextMatcher
 
     public static bool IsYes(string normalized) => YesWords.Any(word => HasPhrase(normalized, word));
 
+    public static bool IsGreeting(string normalized)
+    {
+        var rest = GreetingWords().Replace(" " + normalized + " ", " ").Trim();
+        return rest.Length == 0 && normalized.Length > 0;
+    }
+
     public static bool IsRestart(string normalized) => RestartWords.Any(word => HasPhrase(normalized, word));
 
     public static AssistantInterpretation Interpret(string text, AssistantCatalog catalog, DateOnly today, int? currentBranchId)
@@ -55,7 +61,7 @@ public static partial class TextMatcher
         var time = ExtractTime(withoutPart);
         if (time is { } exact && part is null)
         {
-            part = exact.Hour < 13 ? DayPart.Morning : DayPart.Afternoon;
+            part = DayParts.Of(exact);
         }
 
         return new AssistantInterpretation(false, branchId, barberId, cutId, date, time, part);
@@ -239,6 +245,9 @@ public static partial class TextMatcher
 
     private static bool HasPhrase(string text, string phrase) =>
         phrase.Length > 0 && Regex.IsMatch(text, $@"(^|\s){Regex.Escape(phrase)}($|\s)");
+
+    [GeneratedRegex(@"\b(hola|holis|buenas|buen dia|buenos dias|buenas tardes|buenas noches|que tal|como estas|como va|todo bien|hey|gracias|muchas gracias)\b")]
+    private static partial Regex GreetingWords();
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();

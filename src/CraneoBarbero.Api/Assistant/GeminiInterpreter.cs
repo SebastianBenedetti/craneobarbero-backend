@@ -113,7 +113,7 @@ public sealed class GeminiInterpreter(HttpClient http, IOptions<AssistantSetting
         builder.AppendLine("Los apodos o nombres parecidos se pueden asociar al barbero más parecido de la lista.");
         builder.AppendLine(CultureInfo.InvariantCulture,
             $"Hoy es {Weekdays[(int)today.DayOfWeek]} {today:yyyy-MM-dd}. La fecha va como AAAA-MM-DD y la hora como HH:mm (24 h).");
-        builder.AppendLine("dayPart: \"morning\" (antes de las 13) o \"afternoon\" (desde las 13), solo si el cliente lo dice.");
+        builder.AppendLine("dayPart: \"morning\" (turnos hasta las 13:30) o \"afternoon\" (desde las 14:00), solo si el cliente lo dice.");
         builder.AppendLine("Sucursales: " + string.Join("; ", catalog.Branches.Select(b => b.Name)));
         builder.AppendLine("Barberos: " + string.Join("; ", catalog.Barbers.Select(b =>
             $"{b.Name} ({catalog.Branches.FirstOrDefault(branch => branch.Id == b.BranchId)?.Name})")));

@@ -266,6 +266,37 @@ public sealed class AssistantTests(AssistantApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Greeting_gets_a_friendly_reply()
+    {
+        await SetupAsync();
+        var (client, _) = await VerifiedClientAsync();
+        var start = await SendAsync(client, null);
+
+        var response = await SendAsync(client, start.GetProperty("conversationId").GetString(), message: "Hola, ¿cómo estás?");
+
+        Assert.Equal("branch", Step(response));
+        Assert.StartsWith("¡Hola!", response.GetProperty("reply").GetString());
+    }
+
+    [Fact]
+    public async Task Day_and_part_of_day_are_kept_until_the_missing_steps_are_chosen()
+    {
+        var (branch, barber, cut) = await SetupAsync();
+        var (client, _) = await VerifiedClientAsync();
+        var id = await ConversationAsync(client);
+
+        var waiting = await SendAsync(client, id, message: $"el martes a la tarde en {branch.Name}");
+        Assert.Equal("barber", Step(waiting));
+        await SendAsync(client, id, choice: $"barber:{barber.Id}");
+        var times = await SendAsync(client, id, choice: $"cut:{cut.Id}");
+
+        Assert.Equal("time", Step(times));
+        var values = Values(times).Where(v => v.StartsWith("time:")).ToList();
+        Assert.Contains(TimeChoice(Local(2026, 11, 24, 15, 0)), values);
+        Assert.DoesNotContain(TimeChoice(Local(2026, 11, 24, 10, 0)), values);
+    }
+
+    [Fact]
     public async Task Only_booking_is_allowed()
     {
         await SetupAsync();
@@ -311,6 +342,7 @@ public sealed class AssistantTests(AssistantApiFactory factory) : IClassFixture<
             return await db.SaveChangesAsync();
         });
         barber.Name = $"Barbero{suffix} Prueba";
+        branch.Name = $"Sucursal {suffix}";
         cut.Name = $"Servicio{suffix}";
         return (branch, barber, cut);
     }
@@ -356,4 +388,24 @@ public sealed class AssistantTests(AssistantApiFactory factory) : IClassFixture<
         json.GetProperty("options").EnumerateArray().Select(o => o.GetProperty("value").GetString()!).ToList();
 
     private static string TimeChoice(DateTimeOffset start) => "time:" + start.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
+}
+
+public sealed class DayPartsTests
+{
+    [Theory]
+    [InlineData(9, 0, DayPart.Morning)]
+    [InlineData(13, 30, DayPart.Morning)]
+    [InlineData(14, 0, DayPart.Afternoon)]
+    [InlineData(19, 30, DayPart.Afternoon)]
+    public void Morning_ends_with_the_13_30_slot(int hour, int minute, DayPart expected) =>
+        Assert.Equal(expected, DayParts.Of(new TimeOnly(hour, minute)));
+
+    [Theory]
+    [InlineData("el sábado a las 13:30", DayPart.Morning)]
+    [InlineData("el sábado a las 14", DayPart.Afternoon)]
+    public void Exact_time_sets_the_part_of_day(string text, DayPart expected)
+    {
+        var catalog = new AssistantCatalog([], [], []);
+        Assert.Equal(expected, TextMatcher.Interpret(text, catalog, new DateOnly(2026, 11, 23), null).Part);
+    }
 }
