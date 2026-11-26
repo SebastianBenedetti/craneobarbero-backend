@@ -76,7 +76,8 @@ public sealed record AssistantMessageResponse(
     AssistantStep Step,
     AssistantSummary? Summary,
     string? CheckoutUrl,
-    int? AppointmentId);
+    int? AppointmentId,
+    IReadOnlyList<AssistantProduct>? Products = null);
 
 public sealed class AssistantConversation
 {

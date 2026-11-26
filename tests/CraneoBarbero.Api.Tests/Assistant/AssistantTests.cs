@@ -6,6 +6,7 @@ using CraneoBarbero.Api.Domain.Entities;
 using CraneoBarbero.Api.Domain.Enums;
 using CraneoBarbero.Api.Tests.Infrastructure;
 using CraneoBarbero.Api.Tests.Schedule;
+using CraneoBarbero.Api.Tests.Store;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -412,6 +413,60 @@ public sealed class AssistantTests(AssistantApiFactory factory) : IClassFixture<
         }
 
         await HttpAssertions.AssertErrorAsync(last, HttpStatusCode.TooManyRequests, "too_many_requests");
+    }
+
+    [Fact]
+    public async Task Asking_for_a_product_price_answers_with_the_product_and_keeps_the_step()
+    {
+        await SetupAsync();
+        var (client, _) = await VerifiedClientAsync();
+        var word = "pomada" + Guid.NewGuid().ToString("N")[..6];
+        var product = await factory.AddProductAsync(p => { p.Name = $"{word} mate"; p.SalePrice = 8500m; });
+        var id = await ConversationAsync(client);
+
+        var answer = await SendAsync(client, id, message: $"¿Cuánto sale la {word}?");
+
+        Assert.Equal("branch", Step(answer));
+        Assert.Contains(product.Name, answer.GetProperty("reply").GetString());
+        var products = answer.GetProperty("products");
+        Assert.Equal(1, products.GetArrayLength());
+        Assert.Equal(product.Id, products[0].GetProperty("id").GetInt32());
+        Assert.Equal(8500m, products[0].GetProperty("price").GetDecimal());
+        Assert.True(products[0].GetProperty("inStock").GetBoolean());
+        Assert.NotEmpty(Values(answer));
+    }
+
+    [Fact]
+    public async Task Products_without_stock_are_reported_and_inactive_ones_are_not_found()
+    {
+        await SetupAsync();
+        var (client, _) = await VerifiedClientAsync();
+        var word = "cera" + Guid.NewGuid().ToString("N")[..6];
+        await factory.AddProductAsync(p => { p.Name = $"{word} fuerte"; p.Stock = 0; });
+        var hidden = "gel" + Guid.NewGuid().ToString("N")[..6];
+        await factory.AddProductAsync(p => { p.Name = $"{hidden} fijador"; p.IsActive = false; });
+        var id = await ConversationAsync(client);
+
+        var noStock = await SendAsync(client, id, message: $"precio de la {word}");
+        Assert.False(noStock.GetProperty("products")[0].GetProperty("inStock").GetBoolean());
+        Assert.Contains("no tenemos stock", noStock.GetProperty("reply").GetString());
+
+        var inactive = await SendAsync(client, id, message: $"venden {hidden}?");
+        Assert.Equal(0, inactive.GetProperty("products").GetArrayLength());
+        Assert.Contains("No encontré", inactive.GetProperty("reply").GetString());
+    }
+
+    [Fact]
+    public async Task Asking_the_price_of_a_service_continues_the_booking()
+    {
+        var (_, _, cut) = await SetupAsync();
+        var (client, _) = await VerifiedClientAsync();
+        await factory.AddProductAsync(p => p.Name = $"Aceite para {cut.Name}");
+        var id = await ConversationAsync(client);
+
+        var answer = await SendAsync(client, id, message: $"cuánto sale el {cut.Name}");
+
+        Assert.True(!answer.TryGetProperty("products", out var products) || products.ValueKind == JsonValueKind.Null);
     }
 
     private async Task<(Branch Branch, User Barber, Cut Cut)> SetupAsync()
