@@ -56,6 +56,8 @@ public static class ErrorCodes
     public const string NothingToAdjust = "nothing_to_adjust";
     public const string NotLastAdjustment = "not_last_adjustment";
     public const string AlreadyReverted = "already_reverted";
+    public const string NotReviewable = "not_reviewable";
+    public const string AlreadyReviewed = "already_reviewed";
 }
 
 public static class ErrorMessages
