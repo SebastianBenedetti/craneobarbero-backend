@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, seba-branch]
+    branches: [main, seba-branch, rafa-branch, gera-branch]
   pull_request:
     branches: [main]
 
