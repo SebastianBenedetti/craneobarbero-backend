@@ -266,6 +266,74 @@ public sealed class AssistantTests(AssistantApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Barbers_with_the_same_name_are_offered_to_choose()
+    {
+        var (branch, first, cut) = await SetupAsync();
+        var (otherBranch, second, _) = await SetupAsync();
+        var name = "Nico" + Guid.NewGuid().ToString("N")[..5];
+        await factory.UpdateUserAsync(first.Id, u => u.Name = $"{name} Uno");
+        await factory.UpdateUserAsync(second.Id, u => u.Name = $"{name} Dos");
+        var (client, _) = await VerifiedClientAsync();
+        var id = await ConversationAsync(client);
+
+        var choose = await SendAsync(client, id, message: $"un turno con {name}");
+
+        Assert.Equal("barber", Step(choose));
+        var options = choose.GetProperty("options").EnumerateArray()
+            .Where(o => o.GetProperty("value").GetString()!.StartsWith("barber:"))
+            .ToList();
+        Assert.Equal(2, options.Count);
+        Assert.Contains(options, o => o.GetProperty("label").GetString() == $"{name} Uno ({branch.Name})");
+        Assert.Contains(options, o => o.GetProperty("label").GetString() == $"{name} Dos ({otherBranch.Name})");
+
+        var chosen = await SendAsync(client, id, choice: $"barber:{second.Id}");
+        Assert.Equal("cut", Step(chosen));
+        await SendAsync(client, id, choice: $"cut:{cut.Id}");
+        var times = await SendAsync(client, id, choice: $"day:{Tuesday:yyyy-MM-dd}");
+        var summary = await SendAsync(client, id, choice: Values(times).First(v => v.StartsWith("time:")));
+        Assert.Equal(otherBranch.Name, summary.GetProperty("summary").GetProperty("branchName").GetString());
+        Assert.Equal($"{name} Dos", summary.GetProperty("summary").GetProperty("barberName").GetString());
+    }
+
+    [Fact]
+    public async Task Barbers_with_the_same_name_in_one_branch_are_listed_without_the_branch()
+    {
+        var (branch, first, _) = await SetupAsync();
+        var second = await factory.AddBarberInBranchAsync(branch.Id);
+        await factory.GenerateAsync(second.Id, Tuesday, Tuesday);
+        var name = "Juan" + Guid.NewGuid().ToString("N")[..5];
+        await factory.UpdateUserAsync(first.Id, u => u.Name = $"{name} Pérez");
+        await factory.UpdateUserAsync(second.Id, u => u.Name = $"{name} Gómez");
+        var (client, _) = await VerifiedClientAsync();
+        var id = await ConversationAsync(client);
+
+        var choose = await SendAsync(client, id, message: $"con {name}");
+
+        Assert.Equal("barber", Step(choose));
+        var labels = choose.GetProperty("options").EnumerateArray().Select(o => o.GetProperty("label").GetString()).ToList();
+        Assert.Contains($"{name} Pérez", labels);
+        Assert.Contains($"{name} Gómez", labels);
+
+        var exact = await SendAsync(client, id, message: $"{name} Gómez");
+        Assert.Equal("cut", Step(exact));
+    }
+
+    [Fact]
+    public async Task Nickname_after_con_matches_a_single_barber()
+    {
+        var (_, barber, _) = await SetupAsync();
+        var name = "Gerardito" + Guid.NewGuid().ToString("N")[..4];
+        await factory.UpdateUserAsync(barber.Id, u => u.Name = $"{name} Baldus");
+        var (client, _) = await VerifiedClientAsync();
+        var id = await ConversationAsync(client);
+
+        var response = await SendAsync(client, id, message: $"quiero un turno con {name[..6]}");
+
+        Assert.Equal("cut", Step(response));
+        Assert.Contains($"{name} Baldus", response.GetProperty("reply").GetString());
+    }
+
+    [Fact]
     public async Task Greeting_gets_a_friendly_reply()
     {
         await SetupAsync();

@@ -54,7 +54,7 @@ public static partial class TextMatcher
         }
 
         var branchId = MatchBranch(normalized, catalog);
-        var barberId = MatchBarber(normalized, catalog, branchId ?? currentBranchId);
+        var barbers = MatchBarbers(normalized, catalog, branchId ?? currentBranchId);
         var cutId = MatchCut(normalized, catalog);
         var (part, withoutPart) = ExtractPart(normalized);
         var date = ExtractDate(withoutPart, today);
@@ -64,7 +64,10 @@ public static partial class TextMatcher
             part = DayParts.Of(exact);
         }
 
-        return new AssistantInterpretation(false, branchId, barberId, cutId, date, time, part);
+        return new AssistantInterpretation(false, branchId, barbers.Count == 1 ? barbers[0] : null, cutId, date, time, part)
+        {
+            BarberCandidates = barbers.Count > 1 ? barbers : null,
+        };
     }
 
     public static int? MatchBranch(string normalized, AssistantCatalog catalog, bool allowPartial = false)
@@ -79,25 +82,41 @@ public static partial class TextMatcher
 
     public static int? MatchBarber(string normalized, AssistantCatalog catalog, int? branchId, bool allowPartial = false)
     {
+        var candidates = MatchBarbers(normalized, catalog, branchId, allowPartial);
+        return candidates.Count == 1 ? candidates[0] : null;
+    }
+
+    public static List<int> MatchBarbers(string normalized, AssistantCatalog catalog, int? branchId, bool allowPartial = false)
+    {
         var candidates = catalog.Barbers
             .Where(barber => FullNameMatches(normalized, barber.Name) || FirstNameMatches(normalized, barber.Name) ||
                              (allowPartial && NameMatches(normalized, barber.Name, true)))
             .ToList();
-        if (candidates.Count > 1 && branchId is not null)
+        if (candidates.Count == 0)
         {
-            candidates = candidates.Where(barber => barber.BranchId == branchId).ToList();
+            var nicknames = Nicknames().Matches(normalized).Select(match => match.Groups["name"].Value).ToList();
+            candidates = catalog.Barbers
+                .Where(barber => Normalize(barber.Name).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Any(word => nicknames.Any(nickname => word.StartsWith(nickname, StringComparison.Ordinal))))
+                .ToList();
         }
 
-        if (candidates.Count > 1)
+        var full = candidates.Where(barber => FullNameMatches(normalized, barber.Name)).ToList();
+        if (full.Count >= 1)
         {
-            var full = candidates.Where(barber => FullNameMatches(normalized, barber.Name)).ToList();
-            if (full.Count == 1)
+            candidates = full;
+        }
+
+        if (candidates.Count > 1 && branchId is not null)
+        {
+            var inBranch = candidates.Where(barber => barber.BranchId == branchId).ToList();
+            if (inBranch.Count > 0)
             {
-                candidates = full;
+                candidates = inBranch;
             }
         }
 
-        return candidates.Count == 1 ? candidates[0].Id : null;
+        return candidates.Select(barber => barber.Id).Distinct().ToList();
     }
 
     public static int? MatchCut(string normalized, AssistantCatalog catalog, bool allowPartial = false)
@@ -248,6 +267,9 @@ public static partial class TextMatcher
 
     [GeneratedRegex(@"\b(hola|holis|buenas|buen dia|buenos dias|buenas tardes|buenas noches|que tal|como estas|como va|todo bien|hey|gracias|muchas gracias)\b")]
     private static partial Regex GreetingWords();
+
+    [GeneratedRegex(@"\b(con|barbero|peluquero)\s+(?<name>[a-z]{3,})\b")]
+    private static partial Regex Nicknames();
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();

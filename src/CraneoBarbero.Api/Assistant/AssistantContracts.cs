@@ -91,6 +91,7 @@ public sealed class AssistantConversation
     public int DayPage { get; set; }
     public DayPart? PreferredPart { get; set; }
     public DateOnly? PendingDate { get; set; }
+    public List<int>? BarberCandidates { get; set; }
     public int? AppointmentId { get; set; }
     public string? CheckoutUrl { get; set; }
 
@@ -102,6 +103,7 @@ public sealed class AssistantConversation
         ClearDay();
         PendingDate = null;
         PreferredPart = null;
+        BarberCandidates = null;
         AppointmentId = null;
         CheckoutUrl = null;
     }
@@ -134,6 +136,8 @@ public sealed record AssistantInterpretation(
     TimeOnly? Time = null,
     DayPart? Part = null)
 {
+    public IReadOnlyList<int>? BarberCandidates { get; init; }
+
     public bool HasValues => BranchId is not null || BarberId is not null || CutId is not null ||
-                             Date is not null || Time is not null || Part is not null;
+                             Date is not null || Time is not null || Part is not null || BarberCandidates is { Count: > 1 };
 }

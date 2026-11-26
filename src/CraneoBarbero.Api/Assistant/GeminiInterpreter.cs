@@ -110,7 +110,7 @@ public sealed class GeminiInterpreter(HttpClient http, IOptions<AssistantSetting
         builder.AppendLine("Interpretás mensajes de clientes que quieren sacar un turno en una barbería de Argentina.");
         builder.AppendLine("Respondé solo con el JSON pedido. No inventes valores: usá exactamente un nombre de las listas o null.");
         builder.AppendLine("Si el mensaje no es para reservar un turno (por ejemplo, cancelar, modificar o consultar turnos), intent = \"other\".");
-        builder.AppendLine("Los apodos o nombres parecidos se pueden asociar al barbero más parecido de la lista.");
+        builder.AppendLine("Los apodos se pueden asociar al barbero de la lista. Si el nombre puede ser de más de un barbero, devolvé en barber solo lo que escribió el cliente.");
         builder.AppendLine(CultureInfo.InvariantCulture,
             $"Hoy es {Weekdays[(int)today.DayOfWeek]} {today:yyyy-MM-dd}. La fecha va como AAAA-MM-DD y la hora como HH:mm (24 h).");
         builder.AppendLine("dayPart: \"morning\" (turnos hasta las 13:30) o \"afternoon\" (desde las 14:00), solo si el cliente lo dice.");

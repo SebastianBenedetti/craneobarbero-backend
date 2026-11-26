@@ -158,8 +158,9 @@ public sealed class BookingAssistant(
 
                 break;
             case "barber" when TryId(value, out var barberId):
-                if (catalog.Barbers.Any(b => b.Id == barberId && b.BranchId != conversation.BranchId) ||
-                    !SelectBarber(conversation, catalog, barberId))
+                var allowed = conversation.BarberCandidates?.Contains(barberId) == true ||
+                              catalog.Barbers.Any(b => b.Id == barberId && b.BranchId == conversation.BranchId);
+                if (!allowed || !SelectBarber(conversation, catalog, barberId))
                 {
                     notes.Add("Ese barbero ya no está disponible.");
                 }
@@ -196,7 +197,7 @@ public sealed class BookingAssistant(
             case "time" when DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var start):
                 if (!await SelectTimeAsync(conversation, catalog, start, userId, cancellationToken))
                 {
-                    notes.Add("Ese horario ya no está libre. Estos son los que siguen disponibles:");
+                    notes.Add("Ese horario ya no está libre.");
                 }
 
                 break;
@@ -204,7 +205,7 @@ public sealed class BookingAssistant(
                 await ConfirmAsync(conversation, catalog, userId, notes, cancellationToken);
                 return;
             default:
-                notes.Add("Esa opción ya no está disponible. Elegí una de estas:");
+                notes.Add("Esa opción ya no está disponible.");
                 break;
         }
 
@@ -300,7 +301,8 @@ public sealed class BookingAssistant(
         return conversation.Step switch
         {
             AssistantStep.Branch when TextMatcher.MatchBranch(normalized, catalog, allowPartial: true) is { } id => new AssistantInterpretation(BranchId: id),
-            AssistantStep.Barber when TextMatcher.MatchBarber(normalized, catalog, conversation.BranchId, allowPartial: true) is { } id => new AssistantInterpretation(BarberId: id),
+            AssistantStep.Barber when TextMatcher.MatchBarbers(normalized, catalog, conversation.BranchId, allowPartial: true) is { Count: > 0 } ids =>
+                ids.Count == 1 ? new AssistantInterpretation(BarberId: ids[0]) : new AssistantInterpretation { BarberCandidates = ids },
             AssistantStep.Cut when TextMatcher.MatchCut(normalized, catalog, allowPartial: true) is { } id => new AssistantInterpretation(CutId: id),
             _ => null,
         };
@@ -314,10 +316,10 @@ public sealed class BookingAssistant(
         }
 
         var branchId = interpreted.Branch is { Length: > 0 } branch ? TextMatcher.MatchBranch(TextMatcher.Normalize(branch), catalog, true) : null;
-        var barberId = interpreted.Barber is { Length: > 0 } barber
-            ? catalog.Barbers.FirstOrDefault(b => TextMatcher.Normalize(b.Name) == TextMatcher.Normalize(barber))?.Id
-              ?? TextMatcher.MatchBarber(TextMatcher.Normalize(barber), catalog, branchId ?? currentBranchId, true)
-            : null;
+        var barbers = interpreted.Barber is { Length: > 0 } barber
+            ? TextMatcher.MatchBarbers(TextMatcher.Normalize(barber), catalog, branchId ?? currentBranchId, true)
+            : [];
+        var barberId = barbers.Count == 1 ? barbers[0] : (int?)null;
         var cutId = interpreted.Service is { Length: > 0 } service
             ? catalog.Cuts.FirstOrDefault(c => TextMatcher.Normalize(c.Name) == TextMatcher.Normalize(service))?.Id
               ?? TextMatcher.MatchCut(TextMatcher.Normalize(service), catalog, true)
@@ -334,7 +336,10 @@ public sealed class BookingAssistant(
             part = DayParts.Of(exact);
         }
 
-        return new AssistantInterpretation(false, branchId, barberId, cutId, TextMatcher.ParseIsoDate(interpreted.Date), time, part);
+        return new AssistantInterpretation(false, branchId, barberId, cutId, TextMatcher.ParseIsoDate(interpreted.Date), time, part)
+        {
+            BarberCandidates = barbers.Count > 1 ? barbers : null,
+        };
     }
 
     private async Task ApplyAsync(
@@ -347,9 +352,17 @@ public sealed class BookingAssistant(
             var barber = catalog.Barbers.Single(b => b.Id == barberId);
             understood.Add($"{BranchName(catalog, barber.BranchId)}, con {barber.Name}");
         }
-        else if (interpretation.BranchId is { } branchId && SelectBranch(conversation, catalog, branchId))
+        else
         {
-            understood.Add(BranchName(catalog, branchId));
+            if (interpretation.BranchId is { } branchId && SelectBranch(conversation, catalog, branchId))
+            {
+                understood.Add(BranchName(catalog, branchId));
+            }
+
+            if (interpretation.BarberCandidates is { Count: > 1 } candidates)
+            {
+                OfferBarbers(conversation, catalog, candidates);
+            }
         }
 
         if (interpretation.CutId is { } cutId && SelectCut(conversation, catalog, cutId))
@@ -373,11 +386,11 @@ public sealed class BookingAssistant(
         {
             if (date < clock.Today || date > LastBookableDate())
             {
-                notes.Add($"Solo puedo reservar desde hoy hasta el {Short(LastBookableDate())}.");
+                notes.Add($"Solo puedo reservar desde hoy hasta el {Long(LastBookableDate())}.");
             }
             else if (conversation.BarberId is null || conversation.CutId is null)
             {
-                notes.Add($"Anoté el {Long(date)}: primero elegí lo que falta.");
+                notes.Add($"Anoté el {Long(date)}. Antes necesito que elijas lo que falta.");
                 conversation.PendingDate = date;
             }
             else if (await SelectDayAsync(conversation, catalog, date, userId, cancellationToken))
@@ -408,6 +421,21 @@ public sealed class BookingAssistant(
         Advance(conversation);
     }
 
+    private static void OfferBarbers(AssistantConversation conversation, AssistantCatalog catalog, IReadOnlyList<int> candidates)
+    {
+        var barbers = catalog.Barbers.Where(b => candidates.Contains(b.Id)).ToList();
+        if (barbers.Count < 2)
+        {
+            return;
+        }
+
+        conversation.BarberId = null;
+        conversation.ClearDay();
+        conversation.BarberCandidates = barbers.Select(b => b.Id).ToList();
+        var branches = barbers.Select(b => b.BranchId).Distinct().ToList();
+        conversation.BranchId = branches.Count == 1 ? branches[0] : null;
+    }
+
     private static bool SelectBranch(AssistantConversation conversation, AssistantCatalog catalog, int branchId)
     {
         if (catalog.Branches.All(b => b.Id != branchId))
@@ -422,6 +450,17 @@ public sealed class BookingAssistant(
             conversation.ClearDay();
         }
 
+        if (conversation.BarberCandidates is not null)
+        {
+            conversation.BarberCandidates = conversation.BarberCandidates
+                .Where(id => catalog.Barbers.Any(b => b.Id == id && b.BranchId == branchId))
+                .ToList();
+            if (conversation.BarberCandidates.Count < 2)
+            {
+                conversation.BarberCandidates = null;
+            }
+        }
+
         return true;
     }
 
@@ -433,6 +472,7 @@ public sealed class BookingAssistant(
             return false;
         }
 
+        conversation.BarberCandidates = null;
         if (conversation.BarberId != barberId)
         {
             conversation.BranchId = barber.BranchId;
@@ -528,9 +568,9 @@ public sealed class BookingAssistant(
         {
             conversation.StartAt = null;
             notes.Add(exception.Code == ErrorCodes.ClientOverlap
-                ? "Ya tenés otro turno en ese horario. Elegí otro:"
+                ? "Ya tenés otro turno en ese horario."
                 : exception.Code == ErrorCodes.SlotUnavailable
-                    ? "Ese horario se acaba de ocupar. Estos son los que siguen libres:"
+                    ? "Ese horario se acaba de ocupar."
                     : exception.Message);
             CheckSelections(conversation, await LoadCatalogAsync(cancellationToken), notes);
             Advance(conversation);
@@ -542,7 +582,15 @@ public sealed class BookingAssistant(
         switch (conversation.Step)
         {
             case AssistantStep.Barber:
-                conversation.BranchId = null;
+                if (conversation.BarberCandidates is not null)
+                {
+                    conversation.BarberCandidates = null;
+                }
+                else
+                {
+                    conversation.BranchId = null;
+                }
+
                 break;
             case AssistantStep.Cut:
                 conversation.BarberId = null;
@@ -565,12 +613,13 @@ public sealed class BookingAssistant(
     private static void Advance(AssistantConversation conversation)
     {
         if (conversation.Step == AssistantStep.Done ||
-            (conversation.Step == AssistantStep.Start && conversation.BranchId is null))
+            (conversation.Step == AssistantStep.Start && conversation.BranchId is null && conversation.BarberCandidates is null))
         {
             return;
         }
 
-        conversation.Step = conversation.BranchId is null ? AssistantStep.Branch
+        conversation.Step = conversation.BarberId is null && conversation.BarberCandidates is not null ? AssistantStep.Barber
+            : conversation.BranchId is null ? AssistantStep.Branch
             : conversation.BarberId is null ? AssistantStep.Barber
             : conversation.CutId is null ? AssistantStep.Cut
             : conversation.Date is null ? AssistantStep.Day
@@ -617,6 +666,29 @@ public sealed class BookingAssistant(
                 prompt = "¿En qué sucursal querés atenderte?";
                 options.AddRange(catalog.Branches.Select(b => new AssistantOption(b.Name, $"branch:{b.Id}")));
                 break;
+
+            case AssistantStep.Barber when conversation.BarberCandidates is { } candidateIds:
+            {
+                var candidates = catalog.Barbers.Where(b => candidateIds.Contains(b.Id)).ToList();
+                if (candidates.Count < 2)
+                {
+                    conversation.BarberCandidates = null;
+                    if (candidates.Count == 1)
+                    {
+                        SelectBarber(conversation, catalog, candidates[0].Id);
+                    }
+
+                    Advance(conversation);
+                    return await RenderAsync(conversation, catalog, notes, userId, cancellationToken);
+                }
+
+                var severalBranches = candidates.Select(b => b.BranchId).Distinct().Count() > 1;
+                prompt = "Hay más de un barbero con ese nombre. ¿Con cuál querés atenderte?";
+                options.AddRange(candidates.Select(b => new AssistantOption(
+                    severalBranches ? $"{b.Name} ({BranchName(catalog, b.BranchId)})" : b.Name, $"barber:{b.Id}")));
+                options.Add(new AssistantOption("Ver todos los barberos", "back"));
+                break;
+            }
 
             case AssistantStep.Barber:
                 var barbers = catalog.Barbers.Where(b => b.BranchId == conversation.BranchId).ToList();
@@ -727,8 +799,8 @@ public sealed class BookingAssistant(
 
             default:
                 prompt = conversation.CheckoutUrl is null
-                    ? "Tu turno quedó reservado, pero no pude generar el enlace de pago. Entrá a «Mis turnos» y tocá «Pagar»: tenés 30 minutos."
-                    : $"¡Listo! Tu turno quedó reservado. Tenés {business.Value.PaymentExpirationMinutes} minutos para pagarlo; cuando se acredite el pago te llega el mail de confirmación.";
+                    ? $"Tu turno quedó reservado, pero no pude generar el enlace de pago. Entrá a «Mis turnos» y tocá «Pagar»: tenés {business.Value.PaymentExpirationMinutes} minutos."
+                    : $"¡Listo! Tu turno quedó reservado. Tenés {business.Value.PaymentExpirationMinutes} minutos para pagarlo. Cuando se acredite el pago, te llega el mail de confirmación.";
                 options.Add(new AssistantOption("Sacar otro turno", "restart"));
                 break;
         }
