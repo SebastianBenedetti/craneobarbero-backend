@@ -244,6 +244,30 @@ public sealed class AssistantTests(AssistantApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Model_completes_what_the_local_reading_missed()
+    {
+        var (_, barber, cut) = await SetupAsync();
+        var (client, _) = await VerifiedClientAsync();
+        factory.Interpreter.Configured = true;
+        factory.Interpreter.Answer = _ => new InterpretedText("book", null, "Otro Nombre", cut.Name, "2026-11-30", null, null);
+        try
+        {
+            var id = await ConversationAsync(client);
+            var response = await SendAsync(client, id, message: $"quiero cortarme el pelo el martes con {barber.Name.Split(' ')[0]}");
+
+            Assert.Equal("time", Step(response));
+            Assert.Contains(cut.Name, response.GetProperty("reply").GetString());
+            Assert.Contains("martes 24/11", response.GetProperty("reply").GetString());
+            Assert.Contains(barber.Name, response.GetProperty("reply").GetString());
+        }
+        finally
+        {
+            factory.Interpreter.Configured = false;
+            factory.Interpreter.Answer = _ => null;
+        }
+    }
+
+    [Fact]
     public async Task Model_failure_keeps_the_buttons_working()
     {
         var (branch, _, _) = await SetupAsync();
@@ -471,6 +495,7 @@ public sealed class DayPartsTests
     [Theory]
     [InlineData("el sábado a las 13:30", DayPart.Morning)]
     [InlineData("el sábado a las 14", DayPart.Afternoon)]
+    [InlineData("pasado mañana temprano", DayPart.Morning)]
     public void Exact_time_sets_the_part_of_day(string text, DayPart expected)
     {
         var catalog = new AssistantCatalog([], [], []);

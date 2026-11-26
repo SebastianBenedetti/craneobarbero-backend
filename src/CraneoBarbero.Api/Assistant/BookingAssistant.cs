@@ -267,12 +267,17 @@ public sealed class BookingAssistant(
             interpretation = InterpretCurrentStep(conversation, catalog, normalized) ?? interpretation;
         }
 
-        if (!interpretation.HasValues && !interpretation.OtherIntent && interpreter.IsConfigured && quota.TryUseAi(userId))
+        var missing = interpretation.CutId is null && conversation.CutId is null ||
+                      interpretation.BarberId is null && interpretation.BarberCandidates is null && conversation.BarberId is null ||
+                      interpretation.Date is null && conversation.Date is null;
+        var longMessage = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 4;
+        if (!interpretation.OtherIntent && missing && (!interpretation.HasValues || longMessage) &&
+            interpreter.IsConfigured && quota.TryUseAi(userId))
         {
             var interpreted = await interpreter.InterpretAsync(message, catalog, today, cancellationToken);
             if (interpreted is not null)
             {
-                interpretation = Resolve(interpreted, catalog, conversation.BranchId);
+                interpretation = Merge(interpretation, Resolve(interpreted, catalog, interpretation.BranchId ?? conversation.BranchId));
             }
         }
 
@@ -305,6 +310,32 @@ public sealed class BookingAssistant(
                 ids.Count == 1 ? new AssistantInterpretation(BarberId: ids[0]) : new AssistantInterpretation { BarberCandidates = ids },
             AssistantStep.Cut when TextMatcher.MatchCut(normalized, catalog, allowPartial: true) is { } id => new AssistantInterpretation(CutId: id),
             _ => null,
+        };
+    }
+
+    private static AssistantInterpretation Merge(AssistantInterpretation local, AssistantInterpretation model)
+    {
+        if (!local.HasValues)
+        {
+            return model;
+        }
+
+        if (model.OtherIntent)
+        {
+            return local;
+        }
+
+        var hasBarber = local.BarberId is not null || local.BarberCandidates is not null;
+        return new AssistantInterpretation(
+            false,
+            local.BranchId ?? model.BranchId,
+            hasBarber ? local.BarberId : model.BarberId,
+            local.CutId ?? model.CutId,
+            local.Date ?? model.Date,
+            local.Time ?? model.Time,
+            local.Part ?? model.Part)
+        {
+            BarberCandidates = hasBarber ? local.BarberCandidates : model.BarberCandidates,
         };
     }
 
