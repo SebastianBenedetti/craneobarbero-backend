@@ -129,7 +129,7 @@ public sealed class ProfileTests(ApiFactory factory) : IClassFixture<ApiFactory>
     {
         var email = $"perfil-{Guid.NewGuid():N}@example.com";
         var response = await factory.CreateClient().PostAsJsonAsync("/auth/register",
-            new { name = "Cliente", email, password = Password });
+            new { name = "Cliente", email, password = Password, acceptTerms = true });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         return (email, factory.ClientWithToken(body.GetProperty("token").GetString()!));

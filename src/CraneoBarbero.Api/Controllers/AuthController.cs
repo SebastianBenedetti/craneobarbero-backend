@@ -17,7 +17,7 @@ namespace CraneoBarbero.Api.Controllers;
 
 public sealed record LoginRequest(string? Email, string? Password);
 
-public sealed record RegisterRequest(string? Name, string? Email, string? Password, string? Phone);
+public sealed record RegisterRequest(string? Name, string? Email, string? Password, string? Phone, bool? AcceptTerms);
 
 public sealed record VerifyEmailRequest(string? Token);
 
@@ -44,6 +44,8 @@ public sealed class RegisterRequestValidator : AbstractValidator<RegisterRequest
         RuleFor(r => r.Email).EmailAddress();
         RuleFor(r => r.Password).StrongPassword();
         RuleFor(r => r.Phone).OptionalPhone();
+        RuleFor(r => r.AcceptTerms).Equal(true)
+            .WithMessage("Para crear la cuenta tenés que aceptar los términos y condiciones y la política de privacidad.");
     }
 }
 
@@ -80,7 +82,8 @@ public sealed class AuthController(
     IPasswordHasher hasher,
     IJwtTokenService tokens,
     AuthTokenService authTokens,
-    AccountEmailService emails) : ControllerBase
+    AccountEmailService emails,
+    TimeProvider timeProvider) : ControllerBase
 {
     public const string InvalidCredentialsMessage = "Email o contraseña incorrectos.";
     public const string InactiveAccountMessage = "Tu cuenta está desactivada, comunicate con el local.";
@@ -134,6 +137,7 @@ public sealed class AuthController(
             Role = UserRole.Client,
             IsActive = true,
             EmailVerified = false,
+            TermsAcceptedAt = timeProvider.GetUtcNow(),
         };
         db.Users.Add(user);
 

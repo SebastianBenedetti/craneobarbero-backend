@@ -19,7 +19,7 @@ public sealed class AccountFlowTests(ApiFactory factory) : IClassFixture<ApiFact
         var email = NewEmail();
 
         var response = await factory.CreateClient().PostAsJsonAsync("/auth/register",
-            new { name = "  Ana Pérez ", email = $"  {email.ToUpperInvariant()} ", password = Password, phone = "341 555-1234" });
+            new { name = "  Ana Pérez ", email = $"  {email.ToUpperInvariant()} ", password = Password, phone = "341 555-1234", acceptTerms = true });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -37,6 +37,22 @@ public sealed class AccountFlowTests(ApiFactory factory) : IClassFixture<ApiFact
         Assert.DoesNotContain(Password, stored.PasswordHash);
         Assert.True(stored.IsActive);
         Assert.Null(stored.BranchId);
+        Assert.NotNull(stored.TermsAcceptedAt);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(null)]
+    public async Task Register_requires_accepting_the_terms(bool? acceptTerms)
+    {
+        var email = NewEmail();
+
+        var response = await factory.CreateClient().PostAsJsonAsync("/auth/register",
+            new { name = "Ana", email, password = Password, acceptTerms });
+
+        var json = await HttpAssertions.AssertErrorAsync(response, HttpStatusCode.BadRequest, "validation_error");
+        Assert.True(json.GetProperty("errors").TryGetProperty("acceptTerms", out _));
+        Assert.Null(await FindUserOrNullAsync(email));
     }
 
     [Fact]
@@ -45,7 +61,7 @@ public sealed class AccountFlowTests(ApiFactory factory) : IClassFixture<ApiFact
         var email = NewEmail();
 
         var response = await factory.CreateClient().PostAsJsonAsync("/auth/register",
-            new { name = "Intruso", email, password = Password, role = "admin", emailVerified = true, isActive = true });
+            new { name = "Intruso", email, password = Password, role = "admin", emailVerified = true, isActive = true, acceptTerms = true });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var stored = await FindUserAsync(email);
@@ -97,7 +113,7 @@ public sealed class AccountFlowTests(ApiFactory factory) : IClassFixture<ApiFact
         await RegisterAsync(email);
 
         var response = await factory.CreateClient().PostAsJsonAsync("/auth/register",
-            new { name = "Otra persona", email = email.ToUpperInvariant(), password = Password });
+            new { name = "Otra persona", email = email.ToUpperInvariant(), password = Password, acceptTerms = true });
 
         await HttpAssertions.AssertErrorAsync(response, HttpStatusCode.Conflict, "email_in_use");
     }
@@ -110,7 +126,7 @@ public sealed class AccountFlowTests(ApiFactory factory) : IClassFixture<ApiFact
     public async Task Register_enforces_the_password_policy(string password)
     {
         var response = await factory.CreateClient().PostAsJsonAsync("/auth/register",
-            new { name = "Ana", email = NewEmail(), password });
+            new { name = "Ana", email = NewEmail(), password, acceptTerms = true });
 
         var json = await HttpAssertions.AssertErrorAsync(response, HttpStatusCode.BadRequest, "validation_error");
         Assert.True(json.GetProperty("errors").TryGetProperty("password", out _));
@@ -123,7 +139,7 @@ public sealed class AccountFlowTests(ApiFactory factory) : IClassFixture<ApiFact
     public async Task Register_rejects_invalid_emails(string email)
     {
         var response = await factory.CreateClient().PostAsJsonAsync("/auth/register",
-            new { name = "Ana", email, password = Password });
+            new { name = "Ana", email, password = Password, acceptTerms = true });
 
         var json = await HttpAssertions.AssertErrorAsync(response, HttpStatusCode.BadRequest, "validation_error");
         Assert.True(json.GetProperty("errors").TryGetProperty("email", out _));
@@ -328,7 +344,7 @@ public sealed class AccountFlowTests(ApiFactory factory) : IClassFixture<ApiFact
 
     private async Task<string> RegisterAsync(string email, string name = "Cliente de prueba")
     {
-        var response = await factory.CreateClient().PostAsJsonAsync("/auth/register", new { name, email, password = Password });
+        var response = await factory.CreateClient().PostAsJsonAsync("/auth/register", new { name, email, password = Password, acceptTerms = true });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         return body.GetProperty("token").GetString()!;
@@ -339,6 +355,9 @@ public sealed class AccountFlowTests(ApiFactory factory) : IClassFixture<ApiFact
 
     private Task<User> FindUserAsync(string email) =>
         factory.WithDbAsync(db => db.Users.AsNoTracking().SingleAsync(u => u.Email == email));
+
+    private Task<User?> FindUserOrNullAsync(string email) =>
+        factory.WithDbAsync(db => db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Email == email));
 
     private async Task ExpireTokensAsync(string email, AuthTokenType type)
     {

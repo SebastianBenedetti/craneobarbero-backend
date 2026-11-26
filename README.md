@@ -1,6 +1,6 @@
 # Cráneo Barbero — Backend
 
-API de la barbería Cráneo Barbero: cuentas, turnos, pagos, productos y reportes.
+API de la barbería Cráneo Barbero: cuentas, turnos, agenda, pagos, tienda y stock, precios, reportes, reseñas y asistente de reservas.
 
 Hecha con ASP.NET Core (.NET 10) sobre PostgreSQL. Se despliega en Render con Docker.
 
@@ -8,6 +8,7 @@ Hecha con ASP.NET Core (.NET 10) sobre PostgreSQL. Se despliega en Render con Do
 
 - `src/CraneoBarbero.Api`: la API.
 - `tests/CraneoBarbero.Api.Tests`: tests automáticos.
+- `docs/DATABASE.md`: diagrama entidad-relación y diccionario de datos.
 
 ## Configuración
 
@@ -27,6 +28,7 @@ Las variables de entorno se cargan desde un archivo `.env` local (no se versiona
 | `MP_PUBLIC_KEY` | Public Key de Mercado Pago (la usa el front si hiciera falta). |
 | `MP_WEBHOOK_SECRET` | Clave secreta de las notificaciones (webhooks) de Mercado Pago; sin ella se rechazan todas las notificaciones. |
 | `MP_NOTIFICATION_URL` | URL del webhook (opcional). En Render se arma sola con `RENDER_EXTERNAL_URL` + `/payments/webhook`. |
+| `GEMINI_API_KEY` | Clave de Google AI Studio para que el asistente entienda texto libre (opcional: sin ella el asistente funciona con botones). |
 
 Los mails (verificación de email, recuperación de contraseña y avisos) se envían por la API HTTP de Brevo, porque el plan gratuito de Render bloquea los puertos SMTP. Se mandan en segundo plano y cada envío queda registrado en la tabla `Notifications`. Sin `BREVO_API_KEY` la API funciona igual, pero no envía mails.
 
@@ -55,6 +57,14 @@ Los turnos online se pagan con Checkout Pro de Mercado Pago, siempre en **modo d
 - Si llega un pago aprobado para un turno que ya venció o se canceló, se reembolsa automáticamente.
 - Las cancelaciones con reembolso lo piden a Mercado Pago (con clave de idempotencia); si Mercado Pago falla, la cancelación no se aplica y se informa el error.
 
+## Tienda, precios, reportes, reseñas y asistente
+
+- **Tienda y stock:** productos, categorías, proveedores, compras, ajustes y movimientos de stock. El stock solo cambia con movimientos y se descuenta recién cuando se aprueba el pago del pedido; cada venta guarda el costo vigente para calcular la ganancia.
+- **Precios por inflación:** sugiere el porcentaje con la inflación del INDEC (`apis.datos.gob.ar`, con ArgentinaDatos de respaldo), muestra una vista previa, aplica el ajuste con redondeo y permite revertir el último. Todo cambio de precio o costo queda en el historial.
+- **Reportes:** ingresos, turnos, servicios, barberos, sucursales y productos por período; el admin los exporta a PDF y Excel (generados sin librerías externas).
+- **Reseñas:** el cliente califica una vez cada turno completado (barbero y servicio, de 1 a 5).
+- **Asistente de reservas:** `POST /assistant/message`. Guía la reserva paso a paso con botones y entiende texto libre con un comparador local y, si falta algo, con Gemini (solo se le envía el texto del mensaje). Siempre confirma con un resumen y valida con las mismas reglas que la reserva normal.
+
 ## Base de datos
 
 El esquema se crea y se actualiza solo con migraciones de EF Core; la API nunca modifica tablas al arrancar.
@@ -65,6 +75,20 @@ dotnet ef database update --project src/CraneoBarbero.Api
 ```
 
 Para crear una migración nueva: `dotnet ef migrations add <Nombre> --project src/CraneoBarbero.Api --output-dir Data/Migrations`.
+
+El diagrama entidad-relación y el diccionario de datos están en [`docs/DATABASE.md`](docs/DATABASE.md).
+
+### Respaldo y restauración
+
+El plan gratuito de Supabase no hace copias de seguridad. Un repositorio **privado** aparte (`craneobarbero-backups`) corre todos los lunes una tarea de GitHub Actions que hace `pg_dump` del esquema `public`, lo cifra con AES-256 (clave guardada como secreto del repositorio) y lo deja como artefacto durante 30 días. También se puede correr a mano desde la pestaña Actions. Los volcados tienen datos personales: nunca se guardan en este repositorio.
+
+Para restaurar (necesita el cliente de PostgreSQL 17 y la clave de cifrado):
+
+1. Descargar el artefacto desde la ejecución elegida y descomprimir el `.zip`.
+2. Descifrar: `openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in craneobarbero-<fecha>.dump.enc -out craneobarbero.dump` (pide la clave).
+3. Si es una base nueva, crear la extensión: `CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA extensions;`
+4. Restaurar: `pg_restore --clean --if-exists --no-owner --no-privileges -d "<cadena de conexión>" craneobarbero.dump`.
+5. Si se restauró en una base nueva, apuntar `DATABASE_URL` (local y en Render) a esa base y comprobar `/health`.
 
 ### Importar datos del sistema anterior
 
@@ -79,10 +103,22 @@ dotnet run --project src/CraneoBarbero.Api -- import-legacy <ruta del respaldo>
 La API corre en Render (plan gratuito) con Docker, a partir de `Dockerfile` y `render.yaml`:
 
 - Servicio web en la región Oregón, la misma que la base de Supabase.
-- `JWT_SECRET` lo genera Render; `DATABASE_URL`, `FRONTEND_URL`, `BREVO_API_KEY`, `EMAIL_FROM` y `EMAIL_FROM_NAME` se cargan en el panel del servicio.
-- GitHub Actions compila y corre los tests en cada push a `main` o `seba-branch` y en cada pull request (`.github/workflows/ci.yml`). Render solo despliega un commit de `main` cuando esos chequeos pasan (`autoDeployTrigger: checksPass`).
+- `JWT_SECRET` lo genera Render; `DATABASE_URL`, `FRONTEND_URL`, `BREVO_API_KEY`, `EMAIL_FROM`, `EMAIL_FROM_NAME`, las variables de Mercado Pago y `GEMINI_API_KEY` se cargan en el panel del servicio (con "Save, rebuild, and deploy" para que se apliquen).
+- GitHub Actions compila y corre los tests en cada push a `main` y a las ramas de trabajo (`seba-branch`, `rafa-branch`, `gera-branch`) y en cada pull request (`.github/workflows/ci.yml`). Render solo despliega un commit de `main` cuando esos chequeos pasan (`autoDeployTrigger: checksPass`).
 - Render controla `/health`, que también consulta la base. Un monitor externo lo llama cada pocos minutos para que el servicio no se duerma.
 - El front en Vercel apunta a esta API con `VITE_API_URL`.
+
+## Monitoreo y errores
+
+- **Disponibilidad:** UptimeRobot (plan gratuito) llama a `/health` cada 5 minutos y avisa por mail si no responde. Ese pedido además mantiene despierto el servicio de Render (que se duerme a los 15 minutos sin tráfico, y con él los procesos automáticos, los recordatorios y los webhooks) y, como `/health` hace una consulta a la base, genera actividad en Supabase, que pausa los proyectos gratuitos sin uso durante 7 días.
+- **Errores:** los errores no controlados se registran con Serilog (en producción en formato JSON, sin cuerpos ni datos de las consultas) y se ven en los logs de Render. Al cliente solo le llega un mensaje genérico con la forma `{ error, code }`.
+- **Front:** una pantalla de error atrapa las fallas de una vista y ofrece recargar, en lugar de dejar la página en blanco.
+
+## Seguridad y datos personales
+
+- Contraseñas con bcrypt, sesiones con JWT, permisos por rol y por dueño del recurso validados en el servidor, CORS limitado al front, límite de pedidos por IP (más estricto en `/auth`), cabeceras de seguridad, HSTS y conexión a la base con certificado verificado.
+- Ley 25.326: el registro exige aceptar los términos y la política de privacidad (se guarda la fecha en `Users.termsAcceptedAt`). El cliente puede ver y corregir sus datos, desactivar su cuenta o eliminarla; al eliminarla, sus turnos y compras pasados quedan anonimizados para no alterar los reportes.
+- Las dependencias se revisan con `dotnet list package --vulnerable --include-transitive` (en el front, `npm audit`).
 
 ## Ejecutar
 
