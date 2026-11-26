@@ -10,12 +10,24 @@ namespace CraneoBarbero.Api.Tests.Store;
 public sealed class ProductsTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
-    public async Task Reading_products_requires_a_client_or_admin_session()
+    public async Task Visitors_and_barbers_see_only_active_products_without_cost_or_stock()
     {
-        await HttpAssertions.AssertErrorAsync(await factory.CreateClient().GetAsync("/products"), HttpStatusCode.Unauthorized, "unauthorized");
+        var active = await factory.AddProductAsync();
+        var inactive = await factory.AddProductAsync(p => p.IsActive = false);
 
-        var barber = await factory.ClientForAsync(UserRole.Barber);
-        await HttpAssertions.AssertErrorAsync(await barber.GetAsync("/products"), HttpStatusCode.Forbidden, "forbidden");
+        foreach (var reader in new[] { factory.CreateClient(), await factory.ClientForAsync(UserRole.Barber) })
+        {
+            var response = await reader.GetAsync("/products");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var items = (await response.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().ToList();
+            var shown = Assert.Single(items, p => p.GetProperty("id").GetInt32() == active.Id);
+            Assert.False(shown.TryGetProperty("cost", out _));
+            Assert.False(shown.TryGetProperty("stock", out _));
+            Assert.DoesNotContain(items, p => p.GetProperty("id").GetInt32() == inactive.Id);
+
+            Assert.Equal(HttpStatusCode.OK, (await reader.GetAsync($"/products/{active.Id}")).StatusCode);
+            await HttpAssertions.AssertErrorAsync(await reader.GetAsync($"/products/{inactive.Id}"), HttpStatusCode.NotFound, "not_found");
+        }
     }
 
     [Fact]
