@@ -22,6 +22,8 @@ public sealed class MonthlyReportJob(
 {
     public const string RecipientsVariable = "MONTHLY_REPORT_EMAILS";
 
+    public static readonly TimeOnly SendTime = new(12, 0);
+
     private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-AR");
 
     public async Task<DateOnly> LastWorkingDayAsync(int year, int month, CancellationToken cancellationToken)
@@ -50,8 +52,7 @@ public sealed class MonthlyReportJob(
             return false;
         }
 
-        var ranges = business.Value.GetOpeningRanges(today.DayOfWeek);
-        if (ranges.Count == 0 || TimeOnly.FromDateTime(now.DateTime) < ranges.Max(r => r.End))
+        if (TimeOnly.FromDateTime(now.DateTime) < SendTime)
         {
             return false;
         }
