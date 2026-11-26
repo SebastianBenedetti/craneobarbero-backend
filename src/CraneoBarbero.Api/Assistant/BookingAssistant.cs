@@ -29,6 +29,8 @@ public sealed class BookingAssistant(
     private const string OnlyBookingMessage =
         "Solo puedo ayudarte a sacar turnos nuevos. Para ver, modificar o cancelar tus turnos entrá a «Mis turnos».";
 
+    private IReadOnlyList<AssistantProduct>? foundProducts;
+
     private const string NotUnderstoodMessage =
         "No llegué a entenderte. Elegí una de las opciones o escribilo de otra forma (por ejemplo: «el sábado a la mañana»).";
 
@@ -67,7 +69,7 @@ public sealed class BookingAssistant(
 
         var response = await RenderAsync(conversation, catalog, notes, userId, cancellationToken);
         store.Save(conversation);
-        return response;
+        return foundProducts is null ? response : response with { Products = foundProducts };
     }
 
     private async Task<AssistantCatalog> LoadCatalogAsync(CancellationToken cancellationToken)
@@ -249,6 +251,11 @@ public sealed class BookingAssistant(
             return;
         }
 
+        if (await AnswerProductsAsync(conversation, normalized, catalog, notes, cancellationToken))
+        {
+            return;
+        }
+
         if (conversation.Step == AssistantStep.Confirm && TextMatcher.IsYes(normalized))
         {
             await ConfirmAsync(conversation, catalog, userId, notes, cancellationToken);
@@ -294,6 +301,67 @@ public sealed class BookingAssistant(
         }
 
         await ApplyAsync(conversation, catalog, interpretation, userId, notes, cancellationToken);
+    }
+
+    private async Task<bool> AnswerProductsAsync(
+        AssistantConversation conversation, string normalized, AssistantCatalog catalog, List<string> notes,
+        CancellationToken cancellationToken)
+    {
+        var asksProducts = ProductLookup.AsksAboutProducts(normalized);
+        if (!asksProducts && ProductLookup.MentionsAppointment(normalized))
+        {
+            return false;
+        }
+
+        var products = await db.Products.AsNoTracking()
+            .Where(p => p.IsActive)
+            .Select(p => new CatalogProduct(p.Id, p.Name, p.SalePrice, p.Stock > 0))
+            .ToListAsync(cancellationToken);
+        var (matches, score) = ProductLookup.Find(normalized, products);
+        if (matches.Count == 0)
+        {
+            if (ProductLookup.NamesTheStore(normalized) && !ProductLookup.MentionsAppointment(normalized))
+            {
+                notes.Add("No encontré ese producto en la tienda. Podés ver todos los productos en «Tienda».");
+                foundProducts = [];
+                return true;
+            }
+
+            return false;
+        }
+
+        var namesTheStore = ProductLookup.NamesTheStore(normalized);
+        if (!namesTheStore && score < 2 && TextMatcher.MatchCut(normalized, catalog) is not null)
+        {
+            return false;
+        }
+
+        if (!asksProducts && TextMatcher.Interpret(normalized, catalog, clock.Today, null).HasValues)
+        {
+            return false;
+        }
+
+        if (matches.Count == 1)
+        {
+            var product = matches[0];
+            notes.Add(product.InStock
+                ? $"Tenemos {product.Name} a {AppointmentEmailTemplates.FormatMoney(product.Price)}. Lo podés comprar en la tienda y retirarlo en la sucursal."
+                : $"{product.Name} cuesta {AppointmentEmailTemplates.FormatMoney(product.Price)}, pero ahora no tenemos stock.");
+        }
+        else
+        {
+            notes.Add("Encontré estos productos en la tienda:");
+            notes.AddRange(matches.Select(product =>
+                $"• {product.Name}: {AppointmentEmailTemplates.FormatMoney(product.Price)}{(product.InStock ? string.Empty : " (sin stock por ahora)")}"));
+        }
+
+        if (conversation.Step != AssistantStep.Start)
+        {
+            notes.Add("Si querés, seguimos con tu turno.");
+        }
+
+        foundProducts = matches.Select(p => new AssistantProduct(p.Id, p.Name, p.Price, p.InStock)).ToList();
+        return true;
     }
 
     private AssistantInterpretation? InterpretCurrentStep(AssistantConversation conversation, AssistantCatalog catalog, string normalized)
