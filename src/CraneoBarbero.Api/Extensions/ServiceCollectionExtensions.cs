@@ -94,6 +94,20 @@ public static class ServiceCollectionExtensions
         services.AddScoped<Schedule.HolidayService>();
         services.AddScoped<Schedule.ScheduleManagement>();
         services.AddScoped<Appointments.AppointmentBooking>();
+        services.AddScoped<Appointments.OnlineBooking>();
+        services.AddOptions<Assistant.AssistantSettings>()
+            .BindConfiguration(Assistant.AssistantSettings.SectionName)
+            .Configure<IConfiguration>((settings, configuration) =>
+                settings.GeminiApiKey = configuration[EnvironmentVariables.GeminiApiKey]?.Trim() ?? string.Empty);
+        services.AddSingleton<Assistant.AssistantConversationStore>();
+        services.AddSingleton<Assistant.AssistantQuota>();
+        services.AddHttpClient<Assistant.ITextInterpreter, Assistant.GeminiInterpreter>((provider, client) =>
+        {
+            var settings = provider.GetRequiredService<IOptions<Assistant.AssistantSettings>>().Value;
+            client.BaseAddress = new Uri(settings.GeminiApiUrl);
+            client.Timeout = TimeSpan.FromSeconds(settings.GeminiTimeoutSeconds);
+        });
+        services.AddScoped<Assistant.BookingAssistant>();
         services.AddScoped<Appointments.AppointmentChanges>();
         services.AddScoped<Accounts.AccountClosure>();
         services.AddScoped<Payments.AppointmentPayments>();

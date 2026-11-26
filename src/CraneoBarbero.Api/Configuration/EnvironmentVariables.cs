@@ -16,4 +16,5 @@ public static class EnvironmentVariables
     public const string MercadoPagoWebhookSecret = "MP_WEBHOOK_SECRET";
     public const string MercadoPagoNotificationUrl = "MP_NOTIFICATION_URL";
     public const string RenderExternalUrl = "RENDER_EXTERNAL_URL";
+    public const string GeminiApiKey = "GEMINI_API_KEY";
 }
