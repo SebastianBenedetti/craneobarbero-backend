@@ -29,7 +29,7 @@ public sealed class StockController(AppDbContext db, StockLedger ledger, PriceHi
             request.Quantity!.Value,
             User.GetRequiredUserId(),
             clock.UtcNow,
-            Reason: request.Reason!.Trim()), cancellationToken);
+            Reason: AccountRules.TrimToNull(request.Reason) ?? "Ajuste manual"), cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         if (transaction is not null)
         {
