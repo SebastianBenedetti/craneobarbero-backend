@@ -109,6 +109,40 @@ public sealed class AppointmentNotificationTests(PaymentApiFactory factory) : IC
     }
 
     [Fact]
+    public async Task Paying_in_the_shop_confirms_at_once_and_cancelling_leaves_it_unpaid()
+    {
+        var s = await SetupAsync();
+        var response = await s.Client.PostAsJsonAsync("/appointments", new
+        {
+            barberId = s.Barber.Id, cutId = s.Cut.Id, appointmentDate = Local(2026, 11, 24, 17, 30), paymentMethod = "cash",
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(JsonValueKind.Null, body.GetProperty("checkoutUrl").ValueKind);
+        var appointment = body.GetProperty("appointment");
+        Assert.Equal("pending", appointment.GetProperty("status").GetString());
+        Assert.Equal("unpaid", appointment.GetProperty("paymentStatus").GetString());
+        Assert.Equal("cash", appointment.GetProperty("paymentMethod").GetString());
+        Assert.Equal(JsonValueKind.Null, appointment.GetProperty("paymentExpiresAt").ValueKind);
+
+        var mail = await factory.Emails.WaitForAsync(s.ClientUser.Email);
+        Assert.Contains("Pago: $1.500 en efectivo en el local, el día del turno.", mail.TextBody);
+
+        var id = appointment.GetProperty("id").GetInt32();
+        Assert.Equal(HttpStatusCode.OK, (await s.Client.PostAsync($"/appointments/{id}/cancel", null)).StatusCode);
+        var cancelled = await factory.WithDbAsync(db => db.Appointments.AsNoTracking().SingleAsync(a => a.Id == id));
+        Assert.Equal(AppointmentStatus.Cancelled, cancelled.Status);
+        Assert.Equal(PaymentStatus.Unpaid, cancelled.PaymentStatus);
+
+        var card = await s.Client.PostAsJsonAsync("/appointments", new
+        {
+            barberId = s.Barber.Id, cutId = s.Cut.Id, appointmentDate = Local(2026, 11, 24, 18, 0), paymentMethod = "card",
+        });
+        await HttpAssertions.AssertErrorAsync(card, HttpStatusCode.BadRequest, "validation_error");
+    }
+
+    [Fact]
     public async Task Cancelling_an_unpaid_online_reservation_sends_nothing()
     {
         var s = await SetupAsync();

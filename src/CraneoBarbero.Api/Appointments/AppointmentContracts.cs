@@ -5,7 +5,8 @@ using FluentValidation;
 
 namespace CraneoBarbero.Api.Appointments;
 
-public sealed record CreateAppointmentRequest(int? BarberId, int? CutId, DateTimeOffset? AppointmentDate, int? BranchId);
+public sealed record CreateAppointmentRequest(
+    int? BarberId, int? CutId, DateTimeOffset? AppointmentDate, int? BranchId, PaymentMethod? PaymentMethod = null);
 
 public sealed record CreateManualAppointmentRequest(
     int? BarberId,
@@ -98,6 +99,9 @@ public sealed class CreateAppointmentRequestValidator : AbstractValidator<Create
         RuleFor(r => r.CutId).NotNull().WithMessage("Elegí un servicio.").GreaterThan(0).WithMessage("Elegí un servicio.");
         RuleFor(r => r.AppointmentDate).NotNull().WithMessage("Elegí la fecha y el horario.");
         RuleFor(r => r.BranchId).GreaterThan(0).When(r => r.BranchId is not null).WithMessage("La sucursal no es válida.");
+        RuleFor(r => r.PaymentMethod)
+            .Must(method => method is null or Domain.Enums.PaymentMethod.MercadoPago or Domain.Enums.PaymentMethod.Cash)
+            .WithMessage("Elegí pagar con Mercado Pago o en efectivo en el local.");
     }
 }
 

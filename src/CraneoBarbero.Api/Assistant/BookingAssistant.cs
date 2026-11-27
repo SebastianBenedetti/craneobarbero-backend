@@ -206,6 +206,9 @@ public sealed class BookingAssistant(
             case "confirm":
                 await ConfirmAsync(conversation, catalog, userId, notes, cancellationToken);
                 return;
+            case "confirm_cash":
+                await ConfirmAsync(conversation, catalog, userId, notes, cancellationToken, cash: true);
+                return;
             default:
                 notes.Add("Esa opción ya no está disponible.");
                 break;
@@ -667,7 +670,8 @@ public sealed class BookingAssistant(
     }
 
     private async Task ConfirmAsync(
-        AssistantConversation conversation, AssistantCatalog catalog, int userId, List<string> notes, CancellationToken cancellationToken)
+        AssistantConversation conversation, AssistantCatalog catalog, int userId, List<string> notes, CancellationToken cancellationToken,
+        bool cash = false)
     {
         if (conversation.Step != AssistantStep.Confirm || conversation.BarberId is not { } barberId ||
             conversation.CutId is not { } cutId || conversation.StartAt is not { } start)
@@ -678,7 +682,9 @@ public sealed class BookingAssistant(
 
         try
         {
-            var result = await booking.BookAsync(userId, barberId, cutId, start, conversation.BranchId, cancellationToken);
+            var result = await booking.BookAsync(userId, barberId, cutId, start, conversation.BranchId, cancellationToken,
+                cash ? PaymentMethod.Cash : PaymentMethod.MercadoPago);
+            conversation.PaidInCash = cash;
             conversation.AppointmentId = result.Appointment.Id;
             conversation.CheckoutUrl = result.CheckoutUrl;
             conversation.Step = AssistantStep.Done;
@@ -917,14 +923,17 @@ public sealed class BookingAssistant(
 
             case AssistantStep.Confirm:
                 summary = Summary(conversation, catalog);
-                prompt = "Revisá el resumen. Si está todo bien, confirmá y te paso el enlace para pagar el total con Mercado Pago.";
-                options.Add(new AssistantOption("Confirmar y pagar", "confirm"));
+                prompt = "Revisá el resumen. Si está todo bien, confirmá: podés pagar ahora con Mercado Pago o en efectivo en el local el día del turno.";
+                options.Add(new AssistantOption("Confirmar y pagar con Mercado Pago", "confirm"));
+                options.Add(new AssistantOption("Confirmar y pagar en el local", "confirm_cash"));
                 options.Add(new AssistantOption("Cambiar el horario", "back"));
                 options.Add(new AssistantOption("Empezar de nuevo", "restart"));
                 break;
 
             default:
-                prompt = conversation.CheckoutUrl is null
+                prompt = conversation.PaidInCash
+                    ? "¡Listo! Tu turno quedó confirmado. Lo pagás en efectivo en el local el día del turno. Te mandamos un mail con los datos."
+                    : conversation.CheckoutUrl is null
                     ? $"Tu turno quedó reservado, pero no pude generar el enlace de pago. Entrá a «Mis turnos» y tocá «Pagar»: tenés {business.Value.PaymentExpirationMinutes} minutos."
                     : $"¡Listo! Tu turno quedó reservado. Tenés {business.Value.PaymentExpirationMinutes} minutos para pagarlo. Cuando se acredite el pago, te llega el mail de confirmación.";
                 options.Add(new AssistantOption("Sacar otro turno", "restart"));

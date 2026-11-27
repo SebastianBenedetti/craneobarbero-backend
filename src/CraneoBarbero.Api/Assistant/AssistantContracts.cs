@@ -96,6 +96,7 @@ public sealed class AssistantConversation
     public List<int>? BarberCandidates { get; set; }
     public int? AppointmentId { get; set; }
     public string? CheckoutUrl { get; set; }
+    public bool PaidInCash { get; set; }
 
     public void Reset()
     {
@@ -109,6 +110,7 @@ public sealed class AssistantConversation
         BarberCandidates = null;
         AppointmentId = null;
         CheckoutUrl = null;
+        PaidInCash = false;
     }
 
     public void ClearDay()

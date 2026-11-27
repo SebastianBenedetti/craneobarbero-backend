@@ -405,6 +405,26 @@ public sealed class AssistantTests(AssistantApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Booking_can_be_paid_in_the_shop()
+    {
+        var (branch, barber, cut) = await SetupAsync();
+        var (client, user) = await VerifiedClientAsync();
+        var id = await ConversationAsync(client);
+        var times = await ChooseUntilTimeAsync(client, id, branch, barber, cut);
+        var confirm = await SendAsync(client, id, choice: Values(times).First(v => v.StartsWith("time:")));
+        Assert.Contains("confirm_cash", Values(confirm));
+
+        var done = await SendAsync(client, id, choice: "confirm_cash");
+
+        Assert.Equal("done", Step(done));
+        Assert.Equal(JsonValueKind.Null, done.GetProperty("checkoutUrl").ValueKind);
+        Assert.Contains("efectivo", done.GetProperty("reply").GetString());
+        var appointment = await factory.WithDbAsync(db => db.Appointments.AsNoTracking().SingleAsync(a => a.ClientId == user.Id));
+        Assert.Equal(AppointmentStatus.Pending, appointment.Status);
+        Assert.Equal(PaymentMethod.Cash, appointment.PaymentMethod);
+    }
+
+    [Fact]
     public async Task Start_offers_booking_and_the_shop()
     {
         var (client, _) = await VerifiedClientAsync();
