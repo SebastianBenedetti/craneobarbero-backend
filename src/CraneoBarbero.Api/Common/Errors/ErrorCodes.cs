@@ -48,6 +48,7 @@ public static class ErrorCodes
     public const string CategoryUnavailable = "category_unavailable";
     public const string SupplierUnavailable = "supplier_unavailable";
     public const string SkuInUse = "sku_in_use";
+    public const string ProductExists = "product_exists";
     public const string ProductUnavailable = "product_unavailable";
     public const string InsufficientStock = "insufficient_stock";
     public const string InvalidStatusTransition = "invalid_status_transition";

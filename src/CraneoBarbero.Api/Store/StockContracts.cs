@@ -50,9 +50,8 @@ public sealed class StockAdjustmentRequestValidator : AbstractValidator<StockAdj
         RuleFor(r => r.Quantity).NotNull().WithMessage("Ingresá la cantidad a sumar o restar.")
             .NotEqual(0).WithMessage("La cantidad no puede ser 0.")
             .InclusiveBetween(-StoreLimits.MaxQuantity, StoreLimits.MaxQuantity).WithMessage("La cantidad es demasiado grande.");
-        RuleFor(r => r.Reason).NotEmpty().WithMessage("Escribí el motivo del ajuste.")
-            .Must(reason => reason is not null && reason.Trim().Length is >= 3 and <= StockLimits.MaxReasonLength)
-            .WithMessage($"El motivo debe tener entre 3 y {StockLimits.MaxReasonLength} caracteres.");
+        RuleFor(r => r.Reason).Must(reason => reason is null || reason.Trim().Length <= StockLimits.MaxReasonLength)
+            .WithMessage($"El motivo admite hasta {StockLimits.MaxReasonLength} caracteres.");
     }
 }
 

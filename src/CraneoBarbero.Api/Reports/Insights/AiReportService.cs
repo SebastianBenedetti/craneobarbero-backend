@@ -84,23 +84,24 @@ public sealed class AiReportService(InsightData data, IReportWriter writer)
 
         pdf.Heading("Estrategias recomendadas", 40f);
         var number = 1;
+        var names = ProperWords(s);
         foreach (var strategy in narrative.Strategies)
         {
             pdf.Paragraph($"{number++}. {Clean(strategy.Title)}", 10.5f, dark: true, before: 10f);
-            pdf.Paragraph($"Qué hacer: {Clean(strategy.Action)}", 9.5f, dark: true, before: 3f);
+            pdf.Paragraph($"Qué hacer: {AfterColon(Clean(strategy.Action), names)}", 9.5f, dark: true, before: 3f);
             if (!string.IsNullOrWhiteSpace(strategy.Reason))
             {
-                pdf.Paragraph($"Por qué: {Clean(strategy.Reason)}", 9.5f, dark: true, before: 3f);
+                pdf.Paragraph($"Por qué: {AfterColon(Clean(strategy.Reason), names)}", 9.5f, dark: true, before: 3f);
             }
 
             if (!string.IsNullOrWhiteSpace(strategy.HowTo))
             {
-                pdf.Paragraph($"Cómo aplicarla: {Clean(strategy.HowTo)}", 9.5f, dark: true, before: 3f);
+                pdf.Paragraph($"Cómo aplicarla: {AfterColon(Clean(strategy.HowTo), names)}", 9.5f, dark: true, before: 3f);
             }
 
             if (!string.IsNullOrWhiteSpace(strategy.Measure))
             {
-                pdf.Paragraph($"Qué medir: {Clean(strategy.Measure)}", 9.5f, dark: true, before: 3f);
+                pdf.Paragraph($"Qué medir: {AfterColon(Clean(strategy.Measure), names)}", 9.5f, dark: true, before: 3f);
             }
         }
 
@@ -115,6 +116,28 @@ public sealed class AiReportService(InsightData data, IReportWriter writer)
 
     private static string[] Row(string kind, OccupancyRow row) =>
         [kind, row.Label, row.OpenSlots.ToString("N0", Spanish), row.BusySlots.ToString("N0", Spanish), InsightText.Percent(row.Percent)];
+
+    public static IReadOnlySet<string> ProperWords(InsightSnapshot s) =>
+        s.Barbers.Select(b => b.Name)
+            .Concat(s.Branches.Select(b => b.Name))
+            .Concat(s.Services.Select(x => x.Name))
+            .Concat(s.Products.Products.Select(p => p.Name))
+            .Append("Cráneo Barbero")
+            .SelectMany(name => name.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Where(word => word.Length > 0 && char.IsUpper(word[0]))
+            .ToHashSet(StringComparer.Ordinal);
+
+    public static string AfterColon(string text, IReadOnlySet<string> properWords)
+    {
+        var trimmed = text.TrimStart();
+        if (trimmed.Length < 2 || !char.IsUpper(trimmed[0]) || char.IsUpper(trimmed[1]))
+        {
+            return trimmed;
+        }
+
+        var firstWord = new string(trimmed.TakeWhile(char.IsLetter).ToArray());
+        return properWords.Contains(firstWord) ? trimmed : char.ToLower(trimmed[0], Spanish) + trimmed[1..];
+    }
 
     public static string Clean(string text)
     {

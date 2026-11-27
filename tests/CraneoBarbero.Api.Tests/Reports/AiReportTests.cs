@@ -163,3 +163,17 @@ public sealed class AiReportTests(AiReportApiFactory factory) : IClassFixture<Ai
         return await scope.ServiceProvider.GetRequiredService<MonthlyReportJob>().RunAsync(CancellationToken.None);
     }
 }
+
+public sealed class AfterColonTests
+{
+    private static readonly IReadOnlySet<string> Names = new HashSet<string> { "Gerardo", "Sucursal" };
+
+    [Theory]
+    [InlineData("Ofrecer un descuento los martes.", "ofrecer un descuento los martes.")]
+    [InlineData("Gerardo tiene la mejor ocupación.", "Gerardo tiene la mejor ocupación.")]
+    [InlineData("Sucursal Centro concentra los turnos.", "Sucursal Centro concentra los turnos.")]
+    [InlineData("INDEC publicó la inflación.", "INDEC publicó la inflación.")]
+    [InlineData("  Medir los turnos nuevos.", "medir los turnos nuevos.")]
+    public void Sentences_after_a_colon_start_in_lowercase_unless_they_start_with_a_name(string text, string expected) =>
+        Assert.Equal(expected, AiReportService.AfterColon(text, Names));
+}

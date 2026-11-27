@@ -92,9 +92,11 @@ public sealed class AssistantConversation
     public int DayPage { get; set; }
     public DayPart? PreferredPart { get; set; }
     public DateOnly? PendingDate { get; set; }
+    public TimeOnly? PendingTime { get; set; }
     public List<int>? BarberCandidates { get; set; }
     public int? AppointmentId { get; set; }
     public string? CheckoutUrl { get; set; }
+    public bool PaidInCash { get; set; }
 
     public void Reset()
     {
@@ -103,10 +105,12 @@ public sealed class AssistantConversation
         CutId = null;
         ClearDay();
         PendingDate = null;
+        PendingTime = null;
         PreferredPart = null;
         BarberCandidates = null;
         AppointmentId = null;
         CheckoutUrl = null;
+        PaidInCash = false;
     }
 
     public void ClearDay()

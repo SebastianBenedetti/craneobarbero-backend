@@ -97,7 +97,9 @@ public sealed class AppointmentNotifications(
             case NotificationType.Confirmation:
                 var paymentLine = appointment.PaymentMethod == PaymentMethod.MercadoPago && appointment.PaymentStatus == PaymentStatus.Paid
                     ? $"Pago: {AppointmentEmailTemplates.FormatMoney(appointment.Price)} acreditado con Mercado Pago."
-                    : null;
+                    : appointment.CreatedByRole == UserRole.Client && appointment.PaymentMethod == PaymentMethod.Cash
+                        ? $"Pago: {AppointmentEmailTemplates.FormatMoney(appointment.Price)} en efectivo en el local, el día del turno."
+                        : null;
                 return AppointmentEmailTemplates.Confirmation(client.Email, details, paymentLine, CalendarButtons(appointment), attachment);
             case NotificationType.Modification:
                 return AppointmentEmailTemplates.Modification(client.Email, details, CalendarButtons(appointment), attachment);

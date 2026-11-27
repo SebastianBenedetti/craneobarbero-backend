@@ -36,7 +36,8 @@ public sealed class AppointmentsController(
             request.CutId!.Value,
             request.AppointmentDate!.Value,
             request.BranchId,
-            cancellationToken);
+            cancellationToken,
+            request.PaymentMethod ?? PaymentMethod.MercadoPago);
 
         var response = new CreatedAppointmentResponse(await LoadAsync(appointment.Id, cancellationToken), checkoutUrl);
         return CreatedAtAction(nameof(Get), new { id = appointment.Id }, response);

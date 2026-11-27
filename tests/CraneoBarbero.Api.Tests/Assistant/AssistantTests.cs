@@ -390,6 +390,51 @@ public sealed class AssistantTests(AssistantApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Day_and_hour_are_kept_until_the_service_is_chosen()
+    {
+        var (_, barber, cut) = await SetupAsync();
+        var (client, _) = await VerifiedClientAsync();
+        var id = await ConversationAsync(client);
+
+        var waiting = await SendAsync(client, id, message: $"quiero un turno para el martes a las 16hs con {barber.Name}");
+        Assert.Equal("cut", Step(waiting));
+        var confirm = await SendAsync(client, id, choice: $"cut:{cut.Id}");
+
+        Assert.Equal("confirm", Step(confirm));
+        Assert.Equal("16:00", confirm.GetProperty("summary").GetProperty("time").GetString());
+    }
+
+    [Fact]
+    public async Task Booking_can_be_paid_in_the_shop()
+    {
+        var (branch, barber, cut) = await SetupAsync();
+        var (client, user) = await VerifiedClientAsync();
+        var id = await ConversationAsync(client);
+        var times = await ChooseUntilTimeAsync(client, id, branch, barber, cut);
+        var confirm = await SendAsync(client, id, choice: Values(times).First(v => v.StartsWith("time:")));
+        Assert.Contains("confirm_cash", Values(confirm));
+
+        var done = await SendAsync(client, id, choice: "confirm_cash");
+
+        Assert.Equal("done", Step(done));
+        Assert.Equal(JsonValueKind.Null, done.GetProperty("checkoutUrl").ValueKind);
+        Assert.Contains("efectivo", done.GetProperty("reply").GetString());
+        var appointment = await factory.WithDbAsync(db => db.Appointments.AsNoTracking().SingleAsync(a => a.ClientId == user.Id));
+        Assert.Equal(AppointmentStatus.Pending, appointment.Status);
+        Assert.Equal(PaymentMethod.Cash, appointment.PaymentMethod);
+    }
+
+    [Fact]
+    public async Task Start_offers_booking_and_the_shop()
+    {
+        var (client, _) = await VerifiedClientAsync();
+        var start = await SendAsync(client, null);
+
+        Assert.Contains("start", Values(start));
+        Assert.Contains("shop", Values(start));
+    }
+
+    [Fact]
     public async Task Only_booking_is_allowed()
     {
         await SetupAsync();

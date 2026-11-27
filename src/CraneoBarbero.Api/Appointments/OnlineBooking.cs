@@ -8,7 +8,8 @@ namespace CraneoBarbero.Api.Appointments;
 
 public sealed record OnlineBookingResult(Appointment Appointment, string? CheckoutUrl);
 
-public sealed class OnlineBooking(AppDbContext db, AppointmentBooking booking, Payments.AppointmentPayments payments)
+public sealed class OnlineBooking(
+    AppDbContext db, AppointmentBooking booking, Payments.AppointmentPayments payments, AppointmentNotifications notifications)
 {
     public const string EmailNotVerifiedMessage = "Verificá tu email para poder reservar turnos.";
 
@@ -25,7 +26,8 @@ public sealed class OnlineBooking(AppDbContext db, AppointmentBooking booking, P
     }
 
     public async Task<OnlineBookingResult> BookAsync(
-        int clientId, int barberId, int cutId, DateTimeOffset start, int? branchId, CancellationToken cancellationToken)
+        int clientId, int barberId, int cutId, DateTimeOffset start, int? branchId, CancellationToken cancellationToken,
+        PaymentMethod paymentMethod = PaymentMethod.MercadoPago)
     {
         await EnsureCanBookAsync(clientId, cancellationToken);
 
@@ -38,8 +40,14 @@ public sealed class OnlineBooking(AppDbContext db, AppointmentBooking booking, P
             null,
             UserRole.Client,
             clientId,
-            PaymentMethod.MercadoPago,
+            paymentMethod,
             Online: true), cancellationToken);
+
+        if (paymentMethod == PaymentMethod.Cash)
+        {
+            await notifications.SendConfirmationAsync(appointment.Id, cancellationToken);
+            return new OnlineBookingResult(appointment, null);
+        }
 
         var checkoutUrl = await payments.TryStartCheckoutAsync(appointment, cancellationToken);
         return new OnlineBookingResult(appointment, checkoutUrl);

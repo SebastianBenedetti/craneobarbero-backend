@@ -68,14 +68,20 @@ public sealed class StockMovementsTests(ApiFactory factory) : IClassFixture<ApiF
     }
 
     [Fact]
-    public async Task Adjustments_require_a_reason_and_an_existing_product()
+    public async Task Adjustments_need_a_quantity_and_an_existing_product_but_the_reason_is_optional()
     {
         var admin = await factory.ClientForAsync(UserRole.Admin);
 
-        var invalid = await admin.PostAsJsonAsync("/stock/movements", new { productId = 1, quantity = 0, reason = "" });
+        var invalid = await admin.PostAsJsonAsync("/stock/movements", new { productId = 1, quantity = 0, reason = new string('x', 301) });
         var errors = (await HttpAssertions.AssertErrorAsync(invalid, HttpStatusCode.BadRequest, "validation_error")).GetProperty("errors");
         Assert.True(errors.TryGetProperty("quantity", out _));
         Assert.True(errors.TryGetProperty("reason", out _));
+
+        var product = await factory.AddProductAsync(p => p.Stock = 2);
+        var withoutReason = await admin.PostAsJsonAsync("/stock/movements", new { productId = product.Id, quantity = 1, reason = "" });
+        Assert.Equal(HttpStatusCode.Created, withoutReason.StatusCode);
+        Assert.Equal("Ajuste manual", await factory.WithDbAsync(db =>
+            db.StockMovements.Where(m => m.ProductId == product.Id).Select(m => m.Reason).SingleAsync()));
 
         var missing = await admin.PostAsJsonAsync("/stock/movements", new { productId = 999999, quantity = 1, reason = "Conteo" });
         await HttpAssertions.AssertErrorAsync(missing, HttpStatusCode.BadRequest, "product_unavailable");

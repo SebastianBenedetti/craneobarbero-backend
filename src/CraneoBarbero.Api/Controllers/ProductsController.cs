@@ -145,8 +145,15 @@ public sealed class ProductsController(AppDbContext db, PriceHistoryWriter histo
             throw new ConflictException("Ya existe otro producto con ese código interno (SKU).", ErrorCodes.SkuInUse);
         }
 
+        var name = string.Join(' ', request.Name!.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        var lowerName = name.ToLower();
+        if (await db.Products.AnyAsync(p => p.Id != product.Id && p.Name.ToLower() == lowerName, cancellationToken))
+        {
+            throw new ConflictException("Ya existe un producto con ese nombre.", ErrorCodes.ProductExists);
+        }
+
         product.CategoryId = categoryId;
-        product.Name = request.Name!.Trim();
+        product.Name = name;
         product.Description = AccountRules.TrimToNull(request.Description);
         product.Sku = sku;
         product.Barcode = AccountRules.TrimToNull(request.Barcode);

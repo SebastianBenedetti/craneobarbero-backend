@@ -73,6 +73,9 @@ public sealed class ProductsTests(ApiFactory factory) : IClassFixture<ApiFactory
 
         var duplicate = await admin.PostAsJsonAsync("/products", new { categoryId = category.Id, name = "Otra cera", sku, salePrice = 1m, minStock = 0 });
         await HttpAssertions.AssertErrorAsync(duplicate, HttpStatusCode.Conflict, "sku_in_use");
+
+        var sameName = await admin.PostAsJsonAsync("/products", new { categoryId = category.Id, name = "  CERA   mate ", salePrice = 1m, minStock = 0 });
+        await HttpAssertions.AssertErrorAsync(sameName, HttpStatusCode.Conflict, "product_exists");
     }
 
     [Fact]

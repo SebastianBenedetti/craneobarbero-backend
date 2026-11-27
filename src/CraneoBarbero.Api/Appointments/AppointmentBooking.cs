@@ -68,11 +68,12 @@ public sealed class AppointmentBooking(
         }
 
         var now = clock.UtcNow;
+        var waitsForPayment = request.Online && request.PaymentMethod == PaymentMethod.MercadoPago;
         var appointment = new Appointment
         {
             AppointmentDate = start,
             EndDate = start.AddMinutes(cut.DurationMinutes),
-            Status = request.Online ? AppointmentStatus.AwaitingPayment : AppointmentStatus.Pending,
+            Status = waitsForPayment ? AppointmentStatus.AwaitingPayment : AppointmentStatus.Pending,
             ClientId = request.ClientId,
             ClientName = request.ClientId is null ? request.ClientName : null,
             BarberId = barber.Id,
@@ -81,7 +82,7 @@ public sealed class AppointmentBooking(
             Price = cut.Price,
             PaymentStatus = PaymentStatus.Unpaid,
             PaymentMethod = request.PaymentMethod,
-            PaymentExpiresAt = request.Online ? now.AddMinutes(business.Value.PaymentExpirationMinutes) : null,
+            PaymentExpiresAt = waitsForPayment ? now.AddMinutes(business.Value.PaymentExpirationMinutes) : null,
             CreatedByRole = request.CreatedByRole,
             CreatedById = request.CreatedById,
         };

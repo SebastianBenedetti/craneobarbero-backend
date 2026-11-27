@@ -47,7 +47,7 @@ public sealed class PriceAdjustments(AppDbContext db, PriceHistoryWriter history
             ScopeType = request.ScopeType!,
             ScopeDescription = description,
             RoundingMode = request.Rounding!,
-            IncludesCuts = request.IncludeCuts == true,
+            IncludesCuts = cuts.Count > 0,
             ItemsCount = items.Count,
         };
         db.PriceAdjustments.Add(adjustment);
@@ -267,12 +267,29 @@ public sealed class PriceAdjustments(AppDbContext db, PriceHistoryWriter history
                 break;
         }
 
-        var cuts = request.IncludeCuts == true
-            ? await cutQuery.Where(c => c.IsActive).ToListAsync(cancellationToken)
-            : [];
-        if (request.IncludeCuts == true)
+        List<Cut> cuts;
+        if (request.ScopeType == AdjustmentScopes.Selection && request.CutIds is not null)
         {
-            description += " y los servicios";
+            var cutIds = request.CutIds.Distinct().ToList();
+            cuts = await cutQuery.Where(c => cutIds.Contains(c.Id)).ToListAsync(cancellationToken);
+            if (cuts.Count != cutIds.Count)
+            {
+                throw new BadRequestException("Alguno de los servicios elegidos no existe.", ErrorCodes.CutUnavailable);
+            }
+
+            description = SelectionDescription(products.Count, cuts.Count);
+        }
+        else
+        {
+            cuts = request.IncludeCuts == true
+                ? await cutQuery.Where(c => c.IsActive).ToListAsync(cancellationToken)
+                : [];
+            if (request.IncludeCuts == true)
+            {
+                description = request.ScopeType == AdjustmentScopes.Selection && products.Count == 0
+                    ? "Todos los servicios"
+                    : description + " y los servicios";
+            }
         }
 
         return (products, cuts, description);
@@ -300,13 +317,30 @@ public sealed class PriceAdjustments(AppDbContext db, PriceHistoryWriter history
         return items;
     }
 
+    private static string SelectionDescription(int products, int cuts)
+    {
+        var parts = new List<string>();
+        if (products > 0)
+        {
+            parts.Add(products == 1 ? "1 producto" : $"{products} productos");
+        }
+
+        if (cuts > 0)
+        {
+            parts.Add(cuts == 1 ? "1 servicio" : $"{cuts} servicios");
+        }
+
+        return string.Join(" y ", parts) + (products + cuts == 1 ? " seleccionado" : " seleccionados");
+    }
+
     private static PriceAdjustmentPreview ToPreview(PriceAdjustmentRequest request, string description, List<PriceAdjustmentItem> items)
     {
         var percentage = request.Percentage!.Value;
-        var text = percentage.ToString("0.####", Spanish);
+        var text = Math.Abs(percentage).ToString("0.####", Spanish);
+        var kind = percentage < 0 ? "una baja" : "un aumento";
         var message = items.Count == 1
-            ? $"Se modificará 1 precio con un aumento de {text}%."
-            : $"Se modificarán {items.Count} precios con un aumento de {text}%.";
+            ? $"Se modificará 1 precio con {kind} de {text}%."
+            : $"Se modificarán {items.Count} precios con {kind} de {text}%.";
         return new PriceAdjustmentPreview(percentage, request.Rounding!, description, items.Count, message, items);
     }
 
