@@ -22,11 +22,12 @@ public static class AdjustmentRounding
         var raw = price * (1m + percentage / 100m);
         if (rounding == None)
         {
-            return decimal.Round(raw, 2, MidpointRounding.AwayFromZero);
+            return Math.Max(0m, decimal.Round(raw, 2, MidpointRounding.AwayFromZero));
         }
 
         var multiple = decimal.Parse(rounding, System.Globalization.CultureInfo.InvariantCulture);
-        return decimal.Ceiling(raw / multiple) * multiple;
+        var rounded = percentage < 0 ? decimal.Floor(raw / multiple) * multiple : decimal.Ceiling(raw / multiple) * multiple;
+        return Math.Max(0m, rounded);
     }
 }
 
@@ -40,7 +41,8 @@ public sealed record PriceAdjustmentRequest(
     bool? Confirm = null,
     PriceAdjustmentSource? Source = null,
     string? PeriodFrom = null,
-    string? PeriodTo = null);
+    string? PeriodTo = null,
+    IReadOnlyList<int>? CutIds = null);
 
 public sealed record PriceAdjustmentItem(
     PriceEntityType EntityType,
@@ -107,12 +109,17 @@ public sealed class PriceAdjustmentRequestValidator : AbstractValidator<PriceAdj
             .GreaterThan(0).WithMessage("Elegí la categoría.")
             .When(r => r.ScopeType == AdjustmentScopes.Category);
         RuleFor(r => r.ProductIds)
-            .Must((request, ids) => (ids is { Count: > 0 } && ids.All(id => id > 0)) || request.IncludeCuts == true)
-            .WithMessage("Elegí al menos un producto.")
+            .Must((request, ids) => (ids is { Count: > 0 } && ids.All(id => id > 0)) ||
+                                    request.CutIds is { Count: > 0 } || (request.CutIds is null && request.IncludeCuts == true))
+            .WithMessage("Elegí al menos un producto o un servicio.")
             .Must(ids => ids is null || ids.Count <= 500).WithMessage("Se pueden elegir hasta 500 productos.")
             .When(r => r.ScopeType == AdjustmentScopes.Selection);
-        RuleFor(r => r.Percentage).NotNull().WithMessage("Ingresá el porcentaje de aumento.")
-            .GreaterThan(0m).WithMessage("El porcentaje tiene que ser mayor a 0.")
+        RuleFor(r => r.CutIds)
+            .Must(ids => ids is null || (ids.All(id => id > 0) && ids.Count <= 100)).WithMessage("Los servicios elegidos no son válidos.")
+            .When(r => r.ScopeType == AdjustmentScopes.Selection);
+        RuleFor(r => r.Percentage).NotNull().WithMessage("Ingresá el porcentaje del ajuste.")
+            .NotEqual(0m).WithMessage("El porcentaje no puede ser 0.")
+            .GreaterThan(-100m).WithMessage("La baja tiene que ser menor al 100%.")
             .LessThanOrEqualTo(100m).WithMessage("El porcentaje no puede ser mayor a 100.")
             .Must(p => p is null || decimal.Round(p.Value, 4) == p.Value).WithMessage("El porcentaje admite hasta cuatro decimales.");
         RuleFor(r => r.Rounding).NotEmpty().WithMessage("Elegí el redondeo.")

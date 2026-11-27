@@ -145,6 +145,49 @@ public sealed class PricingTests(PricingApiFactory factory) : IClassFixture<Pric
     }
 
     [Fact]
+    public async Task Prices_can_go_down_and_services_can_be_chosen_one_by_one()
+    {
+        var admin = await factory.ClientForAsync(UserRole.Admin);
+        var gel = await factory.AddProductAsync(p => { p.SalePrice = 1050m; p.Name = "Gel en baja"; });
+        var cut = await factory.AddCutAsync(30);
+        var other = await factory.AddCutAsync(30);
+        await factory.WithDbAsync(async db =>
+        {
+            foreach (var row in await db.Cuts.Where(c => c.Id == cut.Id || c.Id == other.Id).ToListAsync())
+            {
+                row.Price = 10000m;
+            }
+
+            return await db.SaveChangesAsync();
+        });
+
+        var preview = await admin.PostAsJsonAsync("/prices/adjustments/preview", new
+        {
+            scopeType = "selection", productIds = new[] { gel.Id }, cutIds = new[] { cut.Id }, percentage = -10m, rounding = "100",
+        });
+
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        var body = await preview.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Se modificarán 2 precios con una baja de 10%.", body.GetProperty("message").GetString());
+        Assert.Equal("1 producto y 1 servicio seleccionados", body.GetProperty("scopeDescription").GetString());
+        var items = body.GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(900m, items.Single(i => i.GetProperty("entityType").GetString() == "product").GetProperty("newPrice").GetDecimal());
+        Assert.Equal(9000m, items.Single(i => i.GetProperty("entityType").GetString() == "cut").GetProperty("newPrice").GetDecimal());
+        Assert.DoesNotContain(items, i => i.GetProperty("entityType").GetString() == "cut" && i.GetProperty("entityId").GetInt32() == other.Id);
+
+        var onlyCuts = await admin.PostAsJsonAsync("/prices/adjustments/preview", new
+        {
+            scopeType = "selection", productIds = Array.Empty<int>(), cutIds = new[] { cut.Id, other.Id }, percentage = 5m, rounding = "none",
+        });
+        Assert.Equal(2, (await onlyCuts.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("itemsCount").GetInt32());
+
+        var nothing = await admin.PostAsJsonAsync("/prices/adjustments/preview", new { scopeType = "selection", productIds = Array.Empty<int>(), cutIds = Array.Empty<int>(), percentage = 5m, rounding = "none" });
+        await HttpAssertions.AssertErrorAsync(nothing, HttpStatusCode.BadRequest, "validation_error");
+        var tooLow = await admin.PostAsJsonAsync("/prices/adjustments/preview", new { scopeType = "all", percentage = -100m, rounding = "none" });
+        await HttpAssertions.AssertErrorAsync(tooLow, HttpStatusCode.BadRequest, "validation_error");
+    }
+
+    [Fact]
     public async Task Preview_matches_what_is_applied_with_rounding_and_history()
     {
         var admin = await factory.ClientForAsync(UserRole.Admin);
