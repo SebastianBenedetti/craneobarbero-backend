@@ -92,6 +92,7 @@ public sealed class AssistantConversation
     public int DayPage { get; set; }
     public DayPart? PreferredPart { get; set; }
     public DateOnly? PendingDate { get; set; }
+    public TimeOnly? PendingTime { get; set; }
     public List<int>? BarberCandidates { get; set; }
     public int? AppointmentId { get; set; }
     public string? CheckoutUrl { get; set; }
@@ -103,6 +104,7 @@ public sealed class AssistantConversation
         CutId = null;
         ClearDay();
         PendingDate = null;
+        PendingTime = null;
         PreferredPart = null;
         BarberCandidates = null;
         AppointmentId = null;

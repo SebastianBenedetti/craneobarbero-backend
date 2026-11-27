@@ -390,6 +390,31 @@ public sealed class AssistantTests(AssistantApiFactory factory) : IClassFixture<
     }
 
     [Fact]
+    public async Task Day_and_hour_are_kept_until_the_service_is_chosen()
+    {
+        var (_, barber, cut) = await SetupAsync();
+        var (client, _) = await VerifiedClientAsync();
+        var id = await ConversationAsync(client);
+
+        var waiting = await SendAsync(client, id, message: $"quiero un turno para el martes a las 16hs con {barber.Name}");
+        Assert.Equal("cut", Step(waiting));
+        var confirm = await SendAsync(client, id, choice: $"cut:{cut.Id}");
+
+        Assert.Equal("confirm", Step(confirm));
+        Assert.Equal("16:00", confirm.GetProperty("summary").GetProperty("time").GetString());
+    }
+
+    [Fact]
+    public async Task Start_offers_booking_and_the_shop()
+    {
+        var (client, _) = await VerifiedClientAsync();
+        var start = await SendAsync(client, null);
+
+        Assert.Contains("start", Values(start));
+        Assert.Contains("shop", Values(start));
+    }
+
+    [Fact]
     public async Task Only_booking_is_allowed()
     {
         await SetupAsync();
